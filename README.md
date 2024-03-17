@@ -55,6 +55,7 @@ built on layer-services architecture.
     * [ENDPOINT / PLAYERS](.docs/services/players-endpoint.md)
     * [ENDPOINT / REPORTS](.docs/services/reports-endpoint.md)
     * [ENDPOINT / SERVERS](.docs/services/servers-endpoint.md)
+    * [ENDPOINT / SOCIALS](.docs/services/socials-endpoint.md)
 * [Bridgenet Test-Engine](.docs/test-engine.md)
 
 ---

@@ -1,5 +1,5 @@
 {
-  "url": "jdbc:h2:mem:default;DB_CLOSE_ON_EXIT=FALSE",
+  "url": "jdbc:sqlite:C:/Users/itzst/IdeaProjects/moonways-bridgenet/assembly/etc/sqlite/bridgenet.sqlite",
   "username": "username",
   "password": "password"
 }

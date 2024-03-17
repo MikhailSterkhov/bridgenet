@@ -25,6 +25,7 @@
         <module>players</module>
         <module>reports</module>
         <module>servers</module>
+        <module>socials</module>
     </modules>
 
     <dependencies>

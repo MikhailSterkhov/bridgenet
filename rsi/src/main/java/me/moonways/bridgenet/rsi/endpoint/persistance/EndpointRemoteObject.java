@@ -9,6 +9,8 @@ import me.moonways.bridgenet.api.inject.bean.service.BeansStore;
 import java.lang.reflect.Field;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
+import java.util.Collection;
+import java.util.Map;
 
 public abstract class EndpointRemoteObject extends UnicastRemoteObject {
 
@@ -55,22 +57,41 @@ public abstract class EndpointRemoteObject extends UnicastRemoteObject {
                 Object value = declaredField.get(this);
 
                 if (value != null) {
-                    Class<?> type = value.getClass();
-                    if (beansStore.isStored(type)) {
-                        continue;
-                    }
-                    if (type.getPackage().getName().startsWith("me.moonways")) {
-                        if (type.isAssignableFrom(Autobind.class)) {
-                            beansService.bind(value);
-                        } else {
-                            beansService.fakeBind(value);
-                        }
-                    }
+                    injectInternal(value);
                 }
             }
             catch (IllegalAccessException e) {
                 throw new RuntimeException(e);
             }
+        }
+    }
+
+    private void injectInternal(Object value) {
+        Class<?> type = value.getClass();
+
+        if (Map.class.isAssignableFrom(type) || Collection.class.isAssignableFrom(type)) {
+            injectInternalCollection(value);
+            return;
+        }
+
+        if (beansStore.isStored(type)) {
+            return;
+        }
+        if (type.getPackage().getName().startsWith("me.moonways")) {
+            if (type.isAssignableFrom(Autobind.class)) {
+                beansService.bind(value);
+            } else {
+                beansService.fakeBind(value);
+            }
+        }
+    }
+
+    private void injectInternalCollection(Object value) {
+        Class<?> type = value.getClass();
+        if (Map.class.isAssignableFrom(type)) {
+            ((Map) value).values().forEach(this::injectInternal);
+        } else {
+            ((Collection) value).forEach(this::injectInternal);
         }
     }
 }

@@ -182,6 +182,9 @@ public class EntityTransmitter {
         }
 
         private Object getAsInternalValue(Object source) {
+            if (source == null) {
+                return null;
+            }
             if (EntityTransmitter.isNotTransportable(source.getClass())) {
 
                 Entity internal = EntityTransmitter.transmitEntity(source);

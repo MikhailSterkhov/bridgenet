@@ -82,7 +82,7 @@ public final class CollectionElementMapper {
                 .length(style.getLength())
                 .encoding(encoding == null ? null : encoding.getCharacterStyle())
                 .encodingCollate(encoding == null ? null : encoding.getCollate())
-                .defaultValue(defaultValue == null ? null : valueToString(defaultValue))
+                .defaultValue(defaultValue == null || defaultValue.toString().isEmpty() ? null : valueToString(defaultValue))
                 .build();
     }
 
