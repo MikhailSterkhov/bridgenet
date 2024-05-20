@@ -1,5 +1,6 @@
 package me.moonways.bridgenet.api.event;
 
+import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -10,6 +11,7 @@ public final class EventFollower<E extends Event> {
     private final Object lock = new Object();
 
     private Consumer<E> thenExecuteConsumer;
+    @Getter
     private E completed;
 
     private void validateNull(Event event) {

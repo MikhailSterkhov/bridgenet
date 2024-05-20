@@ -4,6 +4,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.experimental.UtilityClass;
 import lombok.extern.log4j.Log4j2;
+import me.moonways.bridgenet.mtp.jni.NativeByteCompressor;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -17,6 +18,8 @@ public class ByteCompression {
 
     private static final byte HAS_COMPRESSION_STATE = 1;
     private static final byte NO_COMPRESSION_STATE = 0;
+
+    private final NativeByteCompressor nativeCompressor = new NativeByteCompressor();
 
     public byte[] compress(byte[] data) throws IOException {
         Deflater deflater = new Deflater();
@@ -55,7 +58,7 @@ public class ByteCompression {
     }
 
     public void write(byte[] array, ByteBuf byteBuf) throws IOException {
-        byte[] compressedBytes = compress(array);
+        byte[] compressedBytes = nativeCompressor.compress(array);
 
         boolean hasCompression = array.length > compressedBytes.length;
 
@@ -70,6 +73,6 @@ public class ByteCompression {
         byteBuf.readBytes(array);
         ByteBuf buffer = Unpooled.buffer();
 
-        return state == HAS_COMPRESSION_STATE ? buffer.writeBytes(decompress(array)) : buffer.writeBytes(array);
+        return state == HAS_COMPRESSION_STATE ? buffer.writeBytes(nativeCompressor.decompress(array)) : buffer.writeBytes(array);
     }
 }

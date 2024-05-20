@@ -313,7 +313,7 @@ public class BeansScanningService {
         List<Class<?>> resources = toResources(beans);
 
         int sortedBeans = 0;
-        for (Bean bean : new ArrayList<>(beans) /* fix CME */) {
+        for (Bean bean : new ArrayList<>(beans) /* CME fixed */) {
             BeanType beanType = bean.getType();
 
             for (BeanComponent component : beanType.getInjectComponents()) {

@@ -2,36 +2,31 @@ package me.moonways.bridgenet.bootstrap.command;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import me.moonways.bridgenet.api.command.CommandSession;
-import me.moonways.bridgenet.api.command.annotation.Alias;
-import me.moonways.bridgenet.api.command.annotation.Command;
-import me.moonways.bridgenet.api.command.annotation.CommandParameter;
-import me.moonways.bridgenet.api.command.annotation.MentorExecutor;
-import me.moonways.bridgenet.api.command.option.CommandParameterOnlyConsoleUse;
-import me.moonways.bridgenet.api.command.sender.EntityCommandSender;
+import me.moonways.bridgenet.api.command.Command;
+import me.moonways.bridgenet.api.command.GeneralCommand;
+import me.moonways.bridgenet.api.command.uses.CommandExecutionContext;
+import me.moonways.bridgenet.api.command.uses.entity.EntityCommandSender;
 import me.moonways.bridgenet.api.util.minecraft.ChatColor;
 
 import java.text.SimpleDateFormat;
 import java.util.function.Function;
 
-@Alias("mem")
-@Command("memory")
-@CommandParameter(CommandParameterOnlyConsoleUse.class)
+@Command
 public class RuntimeMemoryCommand {
 
     private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("EEE, dd MMM yyyy в HH:mm:ss.SSS");
 
     private MemoryDump previousDump = MemoryDump.fix();
 
-    @MentorExecutor
-    public void defaultCommand(CommandSession session) {
-        EntityCommandSender sender = session.getSender();
+    @GeneralCommand({"mem", "memory"})
+    public void defaultCommand(CommandExecutionContext executionContext) {
+        EntityCommandSender sender = executionContext.getSender();
         MemoryDump actualDump = MemoryDump.fix();
+
 
         sender.sendMessage("Замеры памяти на актуальный момент:");
 
         sender.sendMessage(getMemory(actualDump, "Максимально памяти (МБ)", MemoryDump::getMaxMemory));
-        sender.sendMessage(getMemory(actualDump, "Выделено памяти (МБ)", MemoryDump::getTotalMemory));
         sender.sendMessage(getMemory(actualDump, "Свободно памяти (МБ)", MemoryDump::getFreeMemory));
         sender.sendMessage(getMemory(actualDump, "Используется памяти (МБ)", MemoryDump::getUsedMemory));
 

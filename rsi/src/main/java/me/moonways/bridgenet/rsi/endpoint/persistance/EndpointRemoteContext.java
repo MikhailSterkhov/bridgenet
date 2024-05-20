@@ -1,6 +1,6 @@
 package me.moonways.bridgenet.rsi.endpoint.persistance;
 
-import me.moonways.bridgenet.api.command.CommandRegistry;
+import me.moonways.bridgenet.api.command.process.CommandService;
 import me.moonways.bridgenet.api.event.EventService;
 import me.moonways.bridgenet.api.inject.Inject;
 import me.moonways.bridgenet.api.inject.bean.service.BeansService;
@@ -15,14 +15,14 @@ public final class EndpointRemoteContext {
     @Inject
     private BeansService beansService;
     @Inject
-    private CommandRegistry commandRegistry;
+    private CommandService commandService;
 
     /**
      * Зарегистрировать терминальную команду в Bridgenet.
      * @param object - команда.
      */
     public void registerCommand(Object object) {
-        commandRegistry.registerCommand(object);
+        commandService.register(object.getClass(), object);
     }
 
     /**

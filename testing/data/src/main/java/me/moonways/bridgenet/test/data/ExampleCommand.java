@@ -1,26 +1,26 @@
 package me.moonways.bridgenet.test.data;
 
-import me.moonways.bridgenet.api.command.CommandSession;
-import me.moonways.bridgenet.api.command.option.CommandParameterOnlyConsoleUse;
-import me.moonways.bridgenet.api.command.sender.EntityCommandSender;
-import me.moonways.bridgenet.api.command.annotation.*;
-import me.moonways.bridgenet.api.command.CommandArguments;
+import me.moonways.bridgenet.api.command.Command;
+import me.moonways.bridgenet.api.command.CommandPermission;
+import me.moonways.bridgenet.api.command.GeneralCommand;
+import me.moonways.bridgenet.api.command.SubCommand;
+import me.moonways.bridgenet.api.command.label.CommandLabelContext;
+import me.moonways.bridgenet.api.command.uses.CommandExecutionContext;
+import me.moonways.bridgenet.api.command.uses.entity.EntityCommandSender;
 import me.moonways.bridgenet.api.inject.Inject;
 import me.moonways.bridgenet.api.util.minecraft.ChatColor;
 import me.moonways.bridgenet.model.players.PlayersServiceModel;
 
 import java.util.UUID;
 
-@Command("test")
-@Permission("test.use")
-@CommandParameter(CommandParameterOnlyConsoleUse.class)
+@Command
 public class ExampleCommand {
 
     @Inject
     private PlayersServiceModel playersServiceModel;
 
-    @MentorExecutor
-    public void defaultCommand(CommandSession session) {
+    @GeneralCommand({"example", "test"})
+    public void defaultCommand(CommandExecutionContext session) {
         EntityCommandSender sender = session.getSender();
 
         sender.sendMessage("Список доступных команд:");
@@ -29,13 +29,13 @@ public class ExampleCommand {
 
     @Alias("get")
     @Alias("player")
-    @Permission("test.info")
-    @ProducerExecutor("info")
+    @CommandPermission("test.info")
+    @SubCommand("info")
     @ProducerUsageDescription("info <player-name>")
     @ProducerDescription("Get a player information by name")
-    public void handleInfo(CommandSession session) {
+    public void handleInfo(CommandExecutionContext session) {
         EntityCommandSender sender = session.getSender();
-        CommandArguments arguments = session.arguments();
+        CommandLabelContext.Arguments arguments = session.getArguments();
 
         if (arguments.has(1)) {
             UUID playerUuid = arguments.first(playersServiceModel::findPlayerId).orElse(null);
@@ -49,10 +49,5 @@ public class ExampleCommand {
         } else {
             sender.sendMessage(ChatColor.RED + "Not enough arguments - /%s", session.getDescriptor().getUsage());
         }
-    }
-
-    @MatcherExecutor(priority = 10)
-    public boolean predicate_one(CommandSession session) {
-        return true;
     }
 }

@@ -1,7 +1,7 @@
 
 package me.moonways.bridgenet.bootstrap.command.util;
 
-import me.moonways.bridgenet.api.command.sender.EntityCommandSender;
+import me.moonways.bridgenet.api.command.uses.entity.EntityCommandSender;
 import me.moonways.bridgenet.api.inject.Autobind;
 import me.moonways.bridgenet.api.inject.Inject;
 import me.moonways.bridgenet.api.inject.decorator.EnableDecorators;

@@ -1,5 +1,6 @@
 package me.moonways.bridgenet.model.players.offline;
 
+import me.moonways.bridgenet.api.command.uses.entity.EntitySenderType;
 import me.moonways.bridgenet.model.players.EntityPlayer;
 import me.moonways.bridgenet.model.players.Title;
 import me.moonways.bridgenet.model.servers.EntityServer;
@@ -25,6 +26,21 @@ public class OfflineEntityPlayer implements EntityPlayer, Serializable {
     @Override
     public boolean hasPermission(@NotNull String permission) {
         return false; // todo
+    }
+
+    @Override
+    public EntitySenderType getType() {
+        return EntitySenderType.USER;
+    }
+
+    @Override
+    public boolean isInstanceOf(EntitySenderType entityType) {
+        return entityType.equals(EntitySenderType.USER);
+    }
+
+    @Override
+    public UUID getUuid() {
+        return uniqueId;
     }
 
     @Override

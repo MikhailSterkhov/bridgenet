@@ -1,12 +1,9 @@
 package me.moonways.bridgenet.bootstrap.command;
 
-import me.moonways.bridgenet.api.command.CommandSession;
-import me.moonways.bridgenet.api.command.annotation.Alias;
-import me.moonways.bridgenet.api.command.annotation.Command;
-import me.moonways.bridgenet.api.command.annotation.CommandParameter;
-import me.moonways.bridgenet.api.command.annotation.MentorExecutor;
-import me.moonways.bridgenet.api.command.option.CommandParameterOnlyConsoleUse;
-import me.moonways.bridgenet.api.command.sender.EntityCommandSender;
+import me.moonways.bridgenet.api.command.Command;
+import me.moonways.bridgenet.api.command.GeneralCommand;
+import me.moonways.bridgenet.api.command.uses.CommandExecutionContext;
+import me.moonways.bridgenet.api.command.uses.entity.EntityCommandSender;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
@@ -16,18 +13,15 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-@Alias("system")
-@Alias("bn")
-@Command("bridgenet")
-@CommandParameter(CommandParameterOnlyConsoleUse.class)
+@Command
 public class BridgenetStatisticsCommand {
 
     private static final SimpleDateFormat DATETIME_FORMAT = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss.SSS");
     private static final SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("HH:mm:ss.SSS");
 
-    @MentorExecutor
-    public void defaultCommand(CommandSession session) {
-        EntityCommandSender sender = session.getSender();
+    @GeneralCommand({"bridgenet", "bn", "system"})
+    public void defaultCommand(CommandExecutionContext executionContext) {
+        EntityCommandSender sender = executionContext.getSender();
 
         sender.sendMessage("Метрика BridgeNet на актуальный момент:");
 

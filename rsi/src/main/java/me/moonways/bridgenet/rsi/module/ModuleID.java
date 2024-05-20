@@ -22,7 +22,7 @@ public class ModuleID implements Serializable {
     }
 
     public static ModuleID of(int namespaceId) {
-        String generatedNamespace = UUID.fromString(Integer.toString(namespaceId)).toString();
+        String generatedNamespace = UUID.nameUUIDFromBytes(Integer.toString(namespaceId).getBytes()).toString();
         return of(namespaceId, generatedNamespace);
     }
 }

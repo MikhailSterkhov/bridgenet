@@ -1,6 +1,6 @@
 package me.moonways.bridgenet.test.engine.module.impl;
 
-import me.moonways.bridgenet.api.command.CommandRegistry;
+import me.moonways.bridgenet.api.command.Command;
 import me.moonways.bridgenet.test.engine.module.TestEngineModuleAdapter;
 import me.moonways.bridgenet.test.engine.module.TestModuleBeans;
 
@@ -12,7 +12,7 @@ public class CommandsModule extends TestEngineModuleAdapter {
         super(TestModuleBeans.builder()
                 .packagesToScanning(
                         Collections.singletonList(
-                                fromClassPackage(CommandRegistry.class)
+                                fromClassPackage(Command.class)
                         ))
                 .build());
     }
