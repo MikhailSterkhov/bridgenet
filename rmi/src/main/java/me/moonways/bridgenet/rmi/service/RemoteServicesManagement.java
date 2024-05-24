@@ -169,13 +169,12 @@ public final class RemoteServicesManagement {
 
         Class<? extends RemoteService> serviceClass = remoteService.getClass();
 
-        subscriptionsOnRegitstrationMap.keySet()
+        new HashSet<>(subscriptionsOnRegitstrationMap.keySet())
                 .stream()
                 .filter(cls -> serviceClass.isAssignableFrom(cls) || cls.isAssignableFrom(serviceClass))
                 .forEach(modelClass -> {
 
                     Consumer<RemoteService> consumer = (Consumer<RemoteService>) subscriptionsOnRegitstrationMap.remove(modelClass);
-
                     if (consumer != null) {
                         consumer.accept(remoteService);
                     }

@@ -17,6 +17,7 @@
     <modules>
         <module>auth</module>
         <module>bus</module>
+        <module>economy</module>
         <module>friends</module>
         <module>games</module>
         <module>gui</module>

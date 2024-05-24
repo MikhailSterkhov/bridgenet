@@ -14,6 +14,7 @@ import me.moonways.bridgenet.api.command.wrapper.WrappedCommand;
 import me.moonways.bridgenet.api.inject.Autobind;
 import me.moonways.bridgenet.api.inject.Inject;
 import me.moonways.bridgenet.api.inject.PostConstruct;
+import me.moonways.bridgenet.api.inject.bean.service.BeansService;
 import me.moonways.bridgenet.api.inject.processor.TypeAnnotationProcessorResult;
 import me.moonways.bridgenet.api.inject.processor.persistence.GetTypeAnnotationProcessor;
 import me.moonways.bridgenet.api.inject.processor.persistence.WaitTypeAnnotationProcessor;
@@ -47,7 +48,10 @@ public final class CommandExecutor {
     @PostConstruct
     private void init() {
         beansService.onBinding(Command.class, () -> {
-            commandsResult.toList().forEach(registry::registerCommand);
+
+            List<Object> objects = commandsResult.toList();
+
+            objects.forEach(registry::registerCommand);
         });
     }
 
