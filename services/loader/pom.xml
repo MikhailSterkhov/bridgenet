@@ -1,38 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--suppress VulnerableLibrariesLocal -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-
     <parent>
         <groupId>me.moonways.bridgenet</groupId>
-        <artifactId>bridgenet</artifactId>
+        <artifactId>services</artifactId>
         <version>1.2</version>
     </parent>
 
-    <artifactId>services</artifactId>
-    <packaging>pom</packaging>
-
-    <modules>
-        <module>model</module>
-        <module>loader</module>
-        <module>endpoint</module>
-    </modules>
+    <artifactId>services-loader</artifactId>
+    <version>${services.loader.version}</version>
 
     <dependencies>
         <!-- Internal Bridgenet dependencies -->
         <dependency>
             <groupId>me.moonways.bridgenet</groupId>
-            <artifactId>api</artifactId>
-            <version>${api.version}</version>
-            <scope>provided</scope>
+            <artifactId>assembly</artifactId>
+            <version>${assembly.version}</version>
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>me.moonways.bridgenet</groupId>
-            <artifactId>jdbc-provider</artifactId>
-            <version>${jdbc.version}</version>
-            <scope>provided</scope>
+            <artifactId>mtp</artifactId>
+            <version>${mtp.version}</version>
+            <scope>compile</scope>
         </dependency>
     </dependencies>
 </project>

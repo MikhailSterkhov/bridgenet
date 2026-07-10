@@ -15,6 +15,7 @@ public final class ResourcesTypes {
     public static final String MTP_CONFIG_JSON = "mtpconfig.json";
     public static final String REST_SERVER_XML = "rest_server.xml";
     public static final String REMOTE_SERVICES_XML = "remote_services.xml";
+    public static final String SERVICES_XML = "services.xml";
     public static final String DECORATORS_XML = "decorators.xml";
     public static final String RMI_POLICY = "rmi.policy";
     public static final String FAKE_CLIENT_INI = "fake_client.ini";

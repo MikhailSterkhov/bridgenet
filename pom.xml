@@ -32,6 +32,7 @@
         <profiler.version>1.0</profiler.version>
         <rest.version>1.2</rest.version>
         <rmi.version>1.0</rmi.version>
+        <services.loader.version>1.0</services.loader.version>
         <testing.version>2.0</testing.version>
 
         <client.api.version>1.2</client.api.version>
