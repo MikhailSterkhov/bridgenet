@@ -16,7 +16,7 @@ WORKDIR /opt/bridgenet
 COPY --from=build --chown=bridgenet:bridgenet /src/.build/ ./
 
 # Loopback binds are unreachable through published container ports.
-# RMI (remote_services.xml) stays on 127.0.0.1: it is intra-JVM only.
+# Intra-JVM service endpoints are bound via DI (services/loader), no network layer involved.
 RUN sed -i 's/"host": "127.0.0.1"/"host": "0.0.0.0"/' etc/mtpconfig.json \
  && sed -i 's|<host>127.0.0.1</host>|<host>0.0.0.0</host>|' etc/rest_server.xml \
  && mkdir -p logs \

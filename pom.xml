@@ -15,7 +15,6 @@
         <module>services</module>
         <module>assembly</module>
         <module>jdbc</module>
-        <module>rmi</module>
         <module>profiler</module>
         <module>mtp</module>
         <module>client</module>
@@ -31,7 +30,6 @@
         <mtp.version>1.0</mtp.version>
         <profiler.version>1.0</profiler.version>
         <rest.version>1.2</rest.version>
-        <rmi.version>1.0</rmi.version>
         <services.loader.version>1.0</services.loader.version>
         <testing.version>2.0</testing.version>
 
