@@ -16,6 +16,7 @@ import me.moonways.bridgenet.model.service.gui.item.Items;
 import me.moonways.bridgenet.model.service.language.MessageTypes;
 import me.moonways.bridgenet.model.service.players.Player;
 import me.moonways.bridgenet.model.service.players.PlayersServiceModel;
+import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteContext;
 import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteObject;
 
 import java.rmi.RemoteException;
@@ -45,6 +46,11 @@ public final class GuiServiceEndpoint extends EndpointRemoteObject implements Gu
 
     public GuiServiceEndpoint() throws RemoteException {
         super();
+    }
+
+    @Override
+    protected void construct(EndpointRemoteContext context) {
+        context.registerMessageListener(new InboundGuiClickListener(this));
     }
 
     @Override

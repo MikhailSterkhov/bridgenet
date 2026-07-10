@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 import me.moonways.bridgenet.client.api.data.*;
 import me.moonways.bridgenet.model.message.*;
+import me.moonways.bridgenet.model.service.gui.click.ClickType;
 import me.moonways.bridgenet.mtp.channel.BridgenetNetworkChannel;
 
 import java.util.List;
@@ -222,5 +223,18 @@ public final class BridgenetServerSync {
 
         GetCommands.Result result = future.join();
         return result.getList();
+    }
+
+    /**
+     * Экспортировать клик по слоту удалённого GUI
+     * на единый сервер Bridgenet.
+     *
+     * @param playerId  - идентификатор кликнувшего игрока.
+     * @param guiId     - идентификатор GUI.
+     * @param slot      - номер слота (1-based).
+     * @param clickType - тип клика.
+     */
+    public synchronized void exportGuiClickAction(UUID playerId, UUID guiId, int slot, ClickType clickType) {
+        channel.send(new FireClickAction(playerId, guiId, slot, clickType));
     }
 }

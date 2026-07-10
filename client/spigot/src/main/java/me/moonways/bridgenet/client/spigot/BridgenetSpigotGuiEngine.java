@@ -5,15 +5,12 @@ import com.google.common.cache.CacheBuilder;
 import me.moonways.bridgenet.api.inject.Autobind;
 import me.moonways.bridgenet.api.inject.Inject;
 import me.moonways.bridgenet.api.inject.bean.service.BeansService;
+import me.moonways.bridgenet.client.api.BridgenetServerSync;
 import me.moonways.bridgenet.client.spigot.service.gui.BukkitGui;
 import me.moonways.bridgenet.client.spigot.service.gui.RemoteItemParser;
-import me.moonways.bridgenet.model.service.gui.GuiServiceModel;
-import me.moonways.bridgenet.model.service.gui.GuiSlot;
-import me.moonways.bridgenet.model.service.gui.click.ClickAction;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
 
-import java.rmi.RemoteException;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -34,7 +31,7 @@ public final class BridgenetSpigotGuiEngine {
     private BeansService beansService;
 
     @Inject
-    private GuiServiceModel guiServiceModel;
+    private BridgenetServerSync bridgenetServerSync;
 
     /**
      * Обрабатывает действие клика по GUI.
@@ -51,18 +48,12 @@ public final class BridgenetSpigotGuiEngine {
             return;
         }
 
-        try {
-            event.setCancelled(true);
-            guiServiceModel.fireClickAction(
-                    ClickAction.builder()
-                            .playerId(playerId)
-                            .guiId(bukkitGui.getId())
-                            .slot(GuiSlot.at(event.getSlot() + 1))
-                            .clickType(remoteItemParser.remote(event.getClick()))
-                            .build());
-        } catch (RemoteException exception) {
-            throw new RuntimeException(exception);
-        }
+        event.setCancelled(true);
+        bridgenetServerSync.exportGuiClickAction(
+                playerId,
+                bukkitGui.getId(),
+                event.getSlot() + 1,
+                remoteItemParser.remote(event.getClick()));
     }
 
     /**
