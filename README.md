@@ -31,6 +31,7 @@ API для разработчиков: Предоставляет множест
   * [API / Пользовательские команды (User Commands)](/.docs/api/commands-api.md)
   * [API / Подписка на события (Events Subscribing)](/.docs/api/events-api.md)
   * [API / Внедрение зависимостей (Dependency Injection)](/.docs/api/inject-api.md)
+  * [API / Парсинг XML (JAXB)](/.docs/api/jaxb-api.md)
   * [API / Перехват методов (Method Intercepting)](/.docs/api/proxy-api.md)
   * [API / Планирование задач (Scheduling Tasks)](/.docs/api/scheduler-api.md)
 * [Клиенты](/.docs/clients.md)
@@ -38,6 +39,7 @@ API для разработчиков: Предоставляет множест
 * [Движок базы данных](/.docs/jdbc.md)
 * [Профайлер](/.docs/profiler.md)
 * [Основной протокол](/.docs/mtp.md)
+* [Протокол RMI](/.docs/rmi.md)
 * [REST API](/.docs/rest.md)
 * [Сервисы и эндпоинты:](/.docs/services.md)
   * [СЕРВИС / Аутентификация (AUTH)](/.docs/services/auth-endpoint.md)
@@ -66,6 +68,7 @@ $ ./bridgenet endpoints
 ```
 
 Полная компиляция, конфигурация и последующая сборка всех сервисов и их эндпоинтов.
+<br>Опционально принимает имя конкретного эндпоинта первым параметром.
 
 ```shell
 $ ./bridgenet assemblyEndpoints
@@ -82,6 +85,21 @@ $ ./bridgenet jar
 ```shell
 $ ./bridgenet build
 ```
+
+Полная и последовательная компиляция всех модулей проекта BridgeNet, включая сервисы
+<br>и их эндпоинты — объединяет команды `jar` и `endpoints`.
+
+```shell
+$ ./bridgenet test
+```
+
+Запуск интеграционных юнит-тестов проекта (модуль `testing/units`).
+
+```shell
+$ ./bridgenet help
+```
+
+Список всех доступных команд скрипта и их краткое описание.
 
 ---
 
@@ -103,8 +121,8 @@ $ ./bridgenet build
 
 ---
 
-Полная и последовательная компиляция всех модулей проекта BridgeNet, включая сервисы.
-Сборка системы
+## Сборка системы
+
 После выполнения указанных выше скриптов и команд в локальном проекте должна появиться папка .build, содержащая все необходимые файлы для работы системы. Пример содержимого данной папки представлен ниже:
 
 <img src=".assets/build_folder.png" alt="Содержимое папки сборки"/>

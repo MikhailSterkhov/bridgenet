@@ -1,14 +1,14 @@
 # BridgeNet / Services / Language
 
-Permissions - Внутриигровой сервис удаленного доступа, имеющий в себе модель
-<br>и реализацию индивидуальных прав и групп прав относительно игроков.
+Language - Внутриигровой сервис удаленного доступа, имеющий в себе модель
+<br>и реализацию индивидуальных типов мировых языков относительно игроков.
 
 ---
 
 ## MODEL
 
 Для использования сервиса необходимо использовать модельный
-<br>интерфейс `me.moonways.bridgenet.model.language.LanguageServiceModel`:
+<br>интерфейс `me.moonways.bridgenet.model.service.language.LanguageServiceModel`:
 
 ```java
 
@@ -41,11 +41,11 @@ Component message = serviceModel.message(language, MessageTypes.GREETING_ON_JOIN
     <!-- Service direction name -->
     <name>language</name>
     <!-- Target service class type -->
-    <modelPath>me.moonways.bridgenet.model.language.LanguageServiceModel</modelPath>
+    <modelPath>me.moonways.bridgenet.model.service.language.LanguageServiceModel</modelPath>
 </service>
 ```
 
-- Реализация эндпоинта лежит в модуле `endpoints/language`;
+- Реализация эндпоинта лежит в модуле `services/endpoint/language`;
 - Имплементацией основного модельного интерфейса сервиса
   <br>является `me.moonways.endpoint.language.LanguageServiceEndpoint`;
 

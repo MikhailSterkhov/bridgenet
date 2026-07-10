@@ -38,7 +38,7 @@ private ResourcesAssembly assembly;
 ```java
 String systemOverridePropertiesName = ResourcesTypes.SYSTEM_OVERRIDE_PROPERTIES;
 String profilerAttributesJsonName = ResourcesTypes.PROFILER_ATTRIBUTES_JSON;
-String remoteServicesXmlName = ResourcesTypes.REMOTE_SERVICEX_XML;
+String remoteServicesXmlName = ResourcesTypes.REMOTE_SERVICES_XML;
 
 // etc.
 ```
