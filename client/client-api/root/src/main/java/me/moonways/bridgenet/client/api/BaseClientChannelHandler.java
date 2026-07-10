@@ -2,10 +2,8 @@ package me.moonways.bridgenet.client.api;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import me.moonways.bridgenet.api.inject.Inject;
 import me.moonways.bridgenet.mtp.channel.BridgenetNetworkChannel;
 import me.moonways.bridgenet.mtp.connection.client.BridgenetNetworkClientHandler;
-import me.moonways.bridgenet.rmi.service.RemoteServicesManagement;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -17,9 +15,6 @@ public class BaseClientChannelHandler implements BridgenetNetworkClientHandler {
 
     private CompletableFuture<BridgenetNetworkChannel> future;
     private BridgenetNetworkChannel channel;
-
-    @Inject
-    private RemoteServicesManagement remoteServicesManagement;
 
     private void awaitNewChannel() {
         channel = null;
@@ -47,14 +42,12 @@ public class BaseClientChannelHandler implements BridgenetNetworkClientHandler {
     public void onConnected(BridgenetNetworkChannel channel) {
         completeAndFlush(channel);
 
-        connector.getEngine().connectToEndpoints(remoteServicesManagement);
         connector.onConnected(channel);
     }
 
     @Override
     public void onDisconnected(BridgenetNetworkChannel channel) {
         connector.getBridgenetServerSync().exportClientDisconnect();
-        connector.getEngine().disconnectToEndpoints(remoteServicesManagement);
 
         connector.onConnectionClosed();
 
