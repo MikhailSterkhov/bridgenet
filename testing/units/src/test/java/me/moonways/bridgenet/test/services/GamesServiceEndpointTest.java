@@ -4,6 +4,7 @@ import me.moonways.bridgenet.api.inject.Inject;
 import me.moonways.bridgenet.model.message.CreateGame;
 import me.moonways.bridgenet.model.message.DeleteGame;
 import me.moonways.bridgenet.model.message.Handshake;
+import me.moonways.bridgenet.model.message.ProtocolVersion;
 import me.moonways.bridgenet.model.message.UpdateGame;
 import me.moonways.bridgenet.model.service.games.Game;
 import me.moonways.bridgenet.model.service.games.GameStatus;
@@ -84,7 +85,7 @@ public class GamesServiceEndpointTest {
     private Handshake.Result sendHandshakeMessage() {
         BridgenetNetworkChannel channel = exampleClientConnection.getChannel();
 
-        Handshake message = new Handshake(Handshake.Type.SERVER, TestConst.Game.SERVER_DTO.toProperties());
+        Handshake message = new Handshake(Handshake.Type.SERVER, TestConst.Game.SERVER_DTO.toProperties(), ProtocolVersion.CURRENT);
         CompletableFuture<Handshake.Result> future = channel.sendAwait(Handshake.Result.class, message);
         try {
             return future.join();

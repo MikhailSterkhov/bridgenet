@@ -28,7 +28,7 @@ public final class BridgenetServerSync {
      */
     public synchronized Handshake.Result exportClientHandshake(ClientDto description) {
         CompletableFuture<Handshake.Result> future = channel.sendAwait(Handshake.Result.class,
-                new Handshake(Handshake.Type.SERVER, description.toProperties()));
+                new Handshake(Handshake.Type.SERVER, description.toProperties(), ProtocolVersion.CURRENT));
 
         Handshake.Result result = future.join();
         result.onSuccess(() -> currentClientId = result.getKey());
@@ -122,12 +122,13 @@ public final class BridgenetServerSync {
      */
     public synchronized boolean exportUserHandshake(UserDto description) {
         CompletableFuture<Handshake.Result> future = channel.sendAwait(Handshake.Result.class,
-                new Handshake(Handshake.Type.PLAYER, description.toProperties()));
+                new Handshake(Handshake.Type.PLAYER, description.toProperties(), ProtocolVersion.CURRENT));
 
         Handshake.Result result = future.join();
 
-        boolean equals = result.getKey().equals(description.getUniqueId());
-        return (result instanceof Handshake.Success) && equals;
+        return (result instanceof Handshake.Success)
+                && result.getKey() != null
+                && result.getKey().equals(description.getUniqueId());
     }
 
     /**

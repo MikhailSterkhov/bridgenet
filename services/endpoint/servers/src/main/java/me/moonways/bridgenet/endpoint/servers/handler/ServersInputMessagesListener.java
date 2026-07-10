@@ -12,6 +12,7 @@ import me.moonways.bridgenet.model.event.ServerDisconnectEvent;
 import me.moonways.bridgenet.model.event.ServerHandshakeEvent;
 import me.moonways.bridgenet.model.message.Disconnect;
 import me.moonways.bridgenet.model.message.Handshake;
+import me.moonways.bridgenet.model.message.ProtocolVersion;
 import me.moonways.bridgenet.model.message.Redirect;
 import me.moonways.bridgenet.model.service.bus.HandshakePropertiesConst;
 import me.moonways.bridgenet.model.service.servers.EntityServer;
@@ -63,6 +64,13 @@ public class ServersInputMessagesListener {
         Handshake handshake = input.getMessage();
 
         if (handshake.getType() == Handshake.Type.SERVER) {
+
+            if (handshake.getProtocolVersion() != ProtocolVersion.CURRENT) {
+                log.error("§4Handshake rejected: protocol version mismatch (server={}, client={})",
+                        ProtocolVersion.CURRENT, handshake.getProtocolVersion());
+                input.callback(new Handshake.Failure());
+                return;
+            }
 
             ServerInfo serverInfo = toServerInfo(handshake.getProperties());
             registerServer(input, serverInfo);

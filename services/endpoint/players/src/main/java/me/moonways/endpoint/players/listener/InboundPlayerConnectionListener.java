@@ -5,6 +5,7 @@ import lombok.extern.log4j.Log4j2;
 import me.moonways.bridgenet.api.inject.Inject;
 import me.moonways.bridgenet.model.message.Disconnect;
 import me.moonways.bridgenet.model.message.Handshake;
+import me.moonways.bridgenet.model.message.ProtocolVersion;
 import me.moonways.bridgenet.model.message.Redirect;
 import me.moonways.bridgenet.model.service.bus.HandshakePropertiesConst;
 import me.moonways.bridgenet.model.service.players.Player;
@@ -36,6 +37,13 @@ public final class InboundPlayerConnectionListener {
         Handshake handshake = context.getMessage();
 
         if (handshake.getType() == Handshake.Type.PLAYER) {
+
+            if (handshake.getProtocolVersion() != ProtocolVersion.CURRENT) {
+                log.error("§4Handshake rejected: protocol version mismatch (server={}, client={})",
+                        ProtocolVersion.CURRENT, handshake.getProtocolVersion());
+                context.callback(new Handshake.Failure());
+                return;
+            }
 
             Properties properties = handshake.getProperties();
             String userUuidProperty = properties.getProperty(HandshakePropertiesConst.USER_UUID);

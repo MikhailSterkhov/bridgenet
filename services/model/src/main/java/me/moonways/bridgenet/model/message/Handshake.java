@@ -31,6 +31,9 @@ public class Handshake {
     @ByteTransfer(provider = ToPropertiesProvider.class)
     private Properties properties;
 
+    @ByteTransfer
+    private int protocolVersion;
+
     public interface Result {
         UUID getKey();
 

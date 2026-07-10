@@ -2,6 +2,7 @@ package me.moonways.bridgenet.test.client;
 
 import me.moonways.bridgenet.api.inject.Inject;
 import me.moonways.bridgenet.model.message.Handshake;
+import me.moonways.bridgenet.model.message.ProtocolVersion;
 import me.moonways.bridgenet.mtp.channel.BridgenetNetworkChannel;
 import me.moonways.bridgenet.test.data.TestConst;
 import me.moonways.bridgenet.test.data.management.ExampleClientConnection;
@@ -40,7 +41,7 @@ public class ClientHandshakeTest {
     }
 
     private Handshake.Result awaitHandshake() {
-        Handshake handshake = new Handshake(Handshake.Type.SERVER, TestConst.Server.DESC.toProperties());
+        Handshake handshake = new Handshake(Handshake.Type.SERVER, TestConst.Server.DESC.toProperties(), ProtocolVersion.CURRENT);
         BridgenetNetworkChannel channel = exampleClientConnection.getChannel();
 
         CompletableFuture<Handshake.Result> handshakeResultFuture =

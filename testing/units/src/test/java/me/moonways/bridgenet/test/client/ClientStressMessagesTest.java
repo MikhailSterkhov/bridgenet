@@ -6,6 +6,7 @@ import me.moonways.bridgenet.api.command.sender.ConsoleCommandSender;
 import me.moonways.bridgenet.api.inject.Inject;
 import me.moonways.bridgenet.client.api.data.UserDto;
 import me.moonways.bridgenet.model.message.Handshake;
+import me.moonways.bridgenet.model.message.ProtocolVersion;
 import me.moonways.bridgenet.model.message.SendCommand;
 import me.moonways.bridgenet.mtp.channel.BridgenetNetworkChannel;
 import me.moonways.bridgenet.test.data.ExampleClient;
@@ -63,7 +64,8 @@ public class ClientStressMessagesTest {
                                 .uniqueId(playerID)
                                 .proxyId(UUID.randomUUID())
                                 .name(randomString(1000))
-                                .build().toProperties())
+                                .build().toProperties(),
+                        ProtocolVersion.CURRENT)
 
         ).whenComplete((success, throwable) ->
                 channel.send(new SendCommand(playerID, "/testCommand")));
