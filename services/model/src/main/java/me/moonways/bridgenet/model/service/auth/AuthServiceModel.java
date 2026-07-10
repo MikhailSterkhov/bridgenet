@@ -1,12 +1,10 @@
 package me.moonways.bridgenet.model.service.auth;
 
-import me.moonways.bridgenet.rmi.service.RemoteService;
 
-import java.rmi.RemoteException;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface AuthServiceModel extends RemoteService {
+public interface AuthServiceModel {
 
     /**
      * Найти зарегистрированный аккаунт по идентификатору пользователя.
@@ -15,7 +13,7 @@ public interface AuthServiceModel extends RemoteService {
      *
      * @param playerId - идентификатор пользователя, по которому ищем аккаунт.
      */
-    Optional<Account> findAccountById(UUID playerId) throws RemoteException;
+    Optional<Account> findAccountById(UUID playerId);
 
     /**
      * Данная функция воспроизводит попытку авторизации
@@ -27,7 +25,7 @@ public interface AuthServiceModel extends RemoteService {
      * @param playerId      - идентификатор пользователя.
      * @param inputPassword - пароль от аккаунта, который ввел пользователь в систему.
      */
-    AuthorizationResult tryLogin(UUID playerId, String inputPassword) throws RemoteException;
+    AuthorizationResult tryLogin(UUID playerId, String inputPassword);
 
     /**
      * Данная функция воспроизводит попытку регистрации
@@ -39,7 +37,7 @@ public interface AuthServiceModel extends RemoteService {
      * @param playerId      - идентификатор пользователя.
      * @param inputPassword - новый пароль аккаунта, который ввел пользователь в систему.
      */
-    AuthorizationResult tryRegistration(UUID playerId, String inputPassword) throws RemoteException;
+    AuthorizationResult tryRegistration(UUID playerId, String inputPassword);
 
     /**
      * Данная функция воспроизводит попытку смены пароля
@@ -52,7 +50,7 @@ public interface AuthServiceModel extends RemoteService {
      * @param actualPassword - актуальный (текущий) пароль пользователя, введенный пользователем.
      * @param newPassword    - новый (изменяемый) пароль пользователя, введенный пользователем.
      */
-    AuthorizationResult tryPasswordChange(UUID playerId, String actualPassword, String newPassword) throws RemoteException;
+    AuthorizationResult tryPasswordChange(UUID playerId, String actualPassword, String newPassword);
 
     /**
      * Данная функция воспроизводит попытку выхода из аккаунта
@@ -63,7 +61,7 @@ public interface AuthServiceModel extends RemoteService {
      *
      * @param playerId - идентификатор пользователя.
      */
-    AuthorizationResult tryLogOut(UUID playerId) throws RemoteException;
+    AuthorizationResult tryLogOut(UUID playerId);
 
     /**
      * Данная функция воспроизводит попытку удаления аккаунта
@@ -74,5 +72,5 @@ public interface AuthServiceModel extends RemoteService {
      *
      * @param playerId - идентификатор пользователя.
      */
-    AuthorizationResult tryAccountDelete(UUID playerId) throws RemoteException;
+    AuthorizationResult tryAccountDelete(UUID playerId);
 }

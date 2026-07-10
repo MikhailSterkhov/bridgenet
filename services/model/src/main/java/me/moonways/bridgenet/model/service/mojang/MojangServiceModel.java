@@ -1,14 +1,12 @@
 package me.moonways.bridgenet.model.service.mojang;
 
-import me.moonways.bridgenet.rmi.service.RemoteService;
 
-import java.rmi.RemoteException;
 import java.util.Optional;
 
 /**
  * Интерфейс MojangServiceModel предоставляет методы для взаимодействия с сервисом Mojang.
  */
-public interface MojangServiceModel extends RemoteService {
+public interface MojangServiceModel {
 
     /**
      * Проверяет, является ли никнейм пиратским.
@@ -16,7 +14,7 @@ public interface MojangServiceModel extends RemoteService {
      * @param nickname никнейм пользователя в Minecraft.
      * @return true, если никнейм пиратский, иначе false.
      */
-    boolean isPirateNick(String nickname) throws RemoteException;
+    boolean isPirateNick(String nickname);
 
     /**
      * Проверяет, является ли идентификатор пиратским.
@@ -24,7 +22,7 @@ public interface MojangServiceModel extends RemoteService {
      * @param id идентификатор пользователя в Minecraft.
      * @return true, если идентификатор пиратский, иначе false.
      */
-    boolean isPirateId(String id) throws RemoteException;
+    boolean isPirateId(String id);
 
     /**
      * Возвращает никнейм с оригинальным регистром символов.
@@ -32,7 +30,7 @@ public interface MojangServiceModel extends RemoteService {
      * @param nickname никнейм пользователя в Minecraft.
      * @return Optional, содержащий никнейм с оригинальным регистром, если он найден.
      */
-    Optional<String> getNameWithOriginCase(String nickname) throws RemoteException;
+    Optional<String> getNameWithOriginCase(String nickname);
 
     /**
      * Возвращает идентификатор пользователя по его никнейму.
@@ -40,7 +38,7 @@ public interface MojangServiceModel extends RemoteService {
      * @param nickname никнейм пользователя в Minecraft.
      * @return Optional, содержащий идентификатор пользователя, если он найден.
      */
-    Optional<String> getMinecraftId(String nickname) throws RemoteException;
+    Optional<String> getMinecraftId(String nickname);
 
     /**
      * Возвращает никнейм пользователя по его идентификатору.
@@ -48,7 +46,7 @@ public interface MojangServiceModel extends RemoteService {
      * @param id идентификатор пользователя в Minecraft.
      * @return Optional, содержащий никнейм пользователя, если он найден.
      */
-    Optional<String> getMinecraftNick(String id) throws RemoteException;
+    Optional<String> getMinecraftNick(String id);
 
     /**
      * Возвращает скин пользователя по его никнейму.
@@ -56,7 +54,7 @@ public interface MojangServiceModel extends RemoteService {
      * @param nickname никнейм пользователя в Minecraft.
      * @return Optional, содержащий скин пользователя, если он найден.
      */
-    Optional<Skin> getMinecraftSkinByNick(String nickname) throws RemoteException;
+    Optional<Skin> getMinecraftSkinByNick(String nickname);
 
     /**
      * Возвращает скин пользователя по его идентификатору.
@@ -64,5 +62,5 @@ public interface MojangServiceModel extends RemoteService {
      * @param id идентификатор пользователя в Minecraft.
      * @return Optional, содержащий скин пользователя, если он найден.
      */
-    Optional<Skin> getMinecraftSkinById(String id) throws RemoteException;
+    Optional<Skin> getMinecraftSkinById(String id);
 }

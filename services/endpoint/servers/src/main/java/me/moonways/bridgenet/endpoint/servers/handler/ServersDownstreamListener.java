@@ -11,7 +11,6 @@ import me.moonways.bridgenet.model.service.servers.EntityServer;
 import me.moonways.bridgenet.mtp.channel.BridgenetNetworkChannel;
 import me.moonways.bridgenet.mtp.event.ChannelDownstreamEvent;
 
-import java.rmi.RemoteException;
 import java.util.Optional;
 
 @Log4j2
@@ -32,7 +31,7 @@ public class ServersDownstreamListener {
     }
 
     @SubscribeEvent
-    public void handle(ChannelDownstreamEvent event) throws RemoteException {
+    public void handle(ChannelDownstreamEvent event) {
         BridgenetNetworkChannel channel = event.getChannel();
 
         Optional<EntityServer> serverProperty = channel.getProperty(EntityServer.CHANNEL_PROPERTY);

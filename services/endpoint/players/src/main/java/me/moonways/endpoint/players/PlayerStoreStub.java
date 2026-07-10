@@ -25,7 +25,6 @@ import me.moonways.endpoint.players.database.PlayersRepository;
 import me.moonways.endpoint.players.player.OfflinePlayerStub;
 import me.moonways.endpoint.players.player.PlayerStub;
 
-import java.rmi.RemoteException;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.UUID;
@@ -57,7 +56,7 @@ public final class PlayerStoreStub implements PlayerStore {
     @Inject
     private EventService eventService;
 
-    public Player addOnlinePlayer(Handshake handshake) throws RemoteException {
+    public Player addOnlinePlayer(Handshake handshake) {
         PlayerStub player = createPlayer(handshake.getProperties());
 
         if (player == null) {
@@ -83,7 +82,7 @@ public final class PlayerStoreStub implements PlayerStore {
         return player;
     }
 
-    public Player removeOnlinePlayer(UUID id) throws RemoteException {
+    public Player removeOnlinePlayer(UUID id) {
         Player removed = onlinePlayersMap.remove(id);
 
         if (removed == null) {
@@ -102,7 +101,7 @@ public final class PlayerStoreStub implements PlayerStore {
         return removed;
     }
 
-    private PlayerStub createPlayer(Properties properties) throws RemoteException {
+    private PlayerStub createPlayer(Properties properties) {
         UUID uuid = UUID.fromString(properties.getProperty(HandshakePropertiesConst.USER_UUID));
         String username = properties.getProperty(HandshakePropertiesConst.USER_NAME);
 
@@ -134,7 +133,7 @@ public final class PlayerStoreStub implements PlayerStore {
         return new PlayerStub(uuid, username, description, this);
     }
 
-    private OfflinePlayer createOfflinePlayer(UUID id) throws RemoteException {
+    private OfflinePlayer createOfflinePlayer(UUID id) {
         String name = nameById(id);
         if (name == null) {
             return null;
@@ -154,7 +153,7 @@ public final class PlayerStoreStub implements PlayerStore {
     }
 
     @Override
-    public OfflinePlayer getOffline(UUID id) throws RemoteException {
+    public OfflinePlayer getOffline(UUID id) {
         if (id == null) {
             return null;
         }
@@ -179,7 +178,7 @@ public final class PlayerStoreStub implements PlayerStore {
     }
 
     @Override
-    public OfflinePlayer getOffline(String name) throws RemoteException {
+    public OfflinePlayer getOffline(String name) {
         if (name == null) {
             return null;
         }
@@ -187,7 +186,7 @@ public final class PlayerStoreStub implements PlayerStore {
     }
 
     @Override
-    public Optional<Player> get(UUID id) throws RemoteException {
+    public Optional<Player> get(UUID id) {
         if (id == null) {
             return Optional.empty();
         }
@@ -195,7 +194,7 @@ public final class PlayerStoreStub implements PlayerStore {
     }
 
     @Override
-    public Optional<Player> get(String name) throws RemoteException {
+    public Optional<Player> get(String name) {
         if (name == null) {
             return Optional.empty();
         }
@@ -203,7 +202,7 @@ public final class PlayerStoreStub implements PlayerStore {
     }
 
     @Override
-    public String nameById(UUID id) throws RemoteException {
+    public String nameById(UUID id) {
         nameByIdsCache.cleanUp();
 
         AtomicReference<PlayerDescription> cachedDescription =
@@ -226,7 +225,7 @@ public final class PlayerStoreStub implements PlayerStore {
     }
 
     @Override
-    public UUID idByName(String name) throws RemoteException {
+    public UUID idByName(String name) {
         idByNamesCache.cleanUp();
 
         AtomicReference<PlayerDescription> cachedDescription =

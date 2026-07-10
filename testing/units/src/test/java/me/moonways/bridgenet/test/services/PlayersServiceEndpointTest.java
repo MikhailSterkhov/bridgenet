@@ -9,7 +9,7 @@ import me.moonways.bridgenet.model.service.players.component.PlayerStore;
 import me.moonways.bridgenet.test.data.TestConst;
 import me.moonways.bridgenet.test.engine.ModernTestEngineRunner;
 import me.moonways.bridgenet.test.engine.component.module.impl.ClientsModule;
-import me.moonways.bridgenet.test.engine.component.module.impl.RmiServicesModule;
+import me.moonways.bridgenet.test.engine.component.module.impl.ServicesModule;
 import me.moonways.bridgenet.test.engine.component.step.impl.JoinPlayerStep;
 import me.moonways.bridgenet.test.engine.persistance.BeforeSteps;
 import me.moonways.bridgenet.test.engine.persistance.TestModules;
@@ -17,14 +17,13 @@ import me.moonways.bridgenet.test.engine.persistance.TestOrdered;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.rmi.RemoteException;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(ModernTestEngineRunner.class)
-@TestModules({RmiServicesModule.class, ClientsModule.class})
+@TestModules({ServicesModule.class, ClientsModule.class})
 @BeforeSteps(JoinPlayerStep.class)
 public class PlayersServiceEndpointTest {
 
@@ -33,7 +32,7 @@ public class PlayersServiceEndpointTest {
 
     @Test
     @TestOrdered(1)
-    public void test_playersLevelingMath() throws RemoteException {
+    public void test_playersLevelingMath() {
         PlayerLeveling playerLeveling = serviceModel.leveling();
 
         int level2_experience = playerLeveling.totalExperience(2);
@@ -47,7 +46,7 @@ public class PlayersServiceEndpointTest {
 
     @Test
     @TestOrdered(2)
-    public void test_onlinePlayer() throws RemoteException {
+    public void test_onlinePlayer() {
         PlayerStore store = serviceModel.store();
         Optional<Player> player = store.get(TestConst.Player.NICKNAME);
 
@@ -56,7 +55,7 @@ public class PlayersServiceEndpointTest {
 
     @Test
     @TestOrdered(3)
-    public void test_offlinePlayer() throws RemoteException {
+    public void test_offlinePlayer() {
         PlayerStore store = serviceModel.store();
         OfflinePlayer offlinePlayer = store.getOffline(TestConst.Player.NICKNAME);
 

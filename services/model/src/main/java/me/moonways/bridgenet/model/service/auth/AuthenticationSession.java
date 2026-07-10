@@ -1,7 +1,5 @@
 package me.moonways.bridgenet.model.service.auth;
 
-import java.rmi.Remote;
-import java.rmi.RemoteException;
 import java.sql.Timestamp;
 
 /**
@@ -9,18 +7,18 @@ import java.sql.Timestamp;
  * сохраненной сессии аккаунта после попыток
  * регистрации или входа в аккаунт.
  */
-public interface AuthenticationSession extends Remote {
+public interface AuthenticationSession {
 
     /**
      * Получить дату последней успешной авторизации аккаунта.
      */
-    Timestamp getLastAuthenticationDate() throws RemoteException;
+    Timestamp getLastAuthenticationDate();
 
     /**
      * Получить последний IP-адрес, под которым был
      * воспроизведен вход в аккаунт или регистрация.
      */
-    String getLastAuthenticationIp() throws RemoteException;
+    String getLastAuthenticationIp();
 
     /**
      * Проверить, истекла ли сессия на данный момент.
@@ -30,7 +28,7 @@ public interface AuthenticationSession extends Remote {
      * пользователя перезайти в аккаунт
      * в рандомный для него момент.
      */
-    boolean isExpired() throws RemoteException;
+    boolean isExpired();
 
     /**
      * Проверить, активная ли сессия на актуальный момент.
@@ -38,7 +36,7 @@ public interface AuthenticationSession extends Remote {
      * то не играет роли истекла ли сессия на данный момент, здесь
      * важен только факт его активности.
      */
-    boolean isActive() throws RemoteException;
+    boolean isActive();
 
     /**
      * Проверить, является ли сессия неактивной на данный момент.
@@ -46,5 +44,5 @@ public interface AuthenticationSession extends Remote {
      * то не играет роли истекла ли сессия на данный момент, здесь
      * важен только факт его неактивности.
      */
-    boolean isInactive() throws RemoteException;
+    boolean isInactive();
 }

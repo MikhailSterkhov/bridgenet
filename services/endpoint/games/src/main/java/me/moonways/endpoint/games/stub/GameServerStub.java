@@ -8,7 +8,6 @@ import me.moonways.bridgenet.model.service.servers.ServerInfo;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.Serializable;
-import java.rmi.RemoteException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -31,12 +30,12 @@ public class GameServerStub implements GameServer, Serializable {
     }
 
     @Override
-    public Optional<ActiveGame> getBetterGameForJoin() throws RemoteException {
+    public Optional<ActiveGame> getBetterGameForJoin() {
         return Optional.empty(); // TODO
     }
 
     @Override
-    public List<ActiveGame> getActiveGames() throws RemoteException {
+    public List<ActiveGame> getActiveGames() {
         return Collections.unmodifiableList(activeGames);
     }
 }

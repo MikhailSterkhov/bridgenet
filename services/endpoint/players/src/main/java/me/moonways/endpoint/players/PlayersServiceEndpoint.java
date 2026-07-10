@@ -4,29 +4,22 @@ import lombok.Getter;
 import lombok.experimental.Accessors;
 import me.moonways.bridgenet.model.service.players.Player;
 import me.moonways.bridgenet.model.service.players.PlayersServiceModel;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteContext;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteObject;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointRemoteContext;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointServiceObject;
 import me.moonways.endpoint.players.database.PlayersRepository;
 import me.moonways.endpoint.players.listener.InboundPlayerCommandListener;
 import me.moonways.endpoint.players.listener.InboundPlayerConnectionListener;
 
-import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 @Getter
 @Accessors(fluent = true)
-public final class PlayersServiceEndpoint extends EndpointRemoteObject implements PlayersServiceModel {
-
-    private static final long serialVersionUID = 5074638195342022234L;
+public final class PlayersServiceEndpoint extends EndpointServiceObject implements PlayersServiceModel {
 
     private final PlayerLevelingStub leveling = new PlayerLevelingStub();
     private final PlayerStoreStub store = new PlayerStoreStub();
-
-    public PlayersServiceEndpoint() throws RemoteException {
-        super();
-    }
 
     @Override
     protected void construct(EndpointRemoteContext context) {
@@ -40,12 +33,12 @@ public final class PlayersServiceEndpoint extends EndpointRemoteObject implement
     }
 
     @Override
-    public int getTotalOnline() throws RemoteException {
+    public int getTotalOnline() {
         return getOnlinePlayers().size();
     }
 
     @Override
-    public List<Player> getOnlinePlayers() throws RemoteException {
+    public List<Player> getOnlinePlayers() {
         return Collections.unmodifiableList(new ArrayList<>(store.getOnlinePlayersMap().values()));
     }
 }

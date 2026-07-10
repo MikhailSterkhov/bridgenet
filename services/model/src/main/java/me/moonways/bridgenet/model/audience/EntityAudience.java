@@ -8,7 +8,6 @@ import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.rmi.RemoteException;
 import java.util.Optional;
 
 /**
@@ -22,14 +21,14 @@ public interface EntityAudience {
      *
      * @param message - сущность сообщения.
      */
-    Optional<AudienceSendEvent> sendMessage(@NotNull Component message) throws RemoteException;
+    Optional<AudienceSendEvent> sendMessage(@NotNull Component message);
 
     /**
      * Отправить отправителю сообщение.
      *
      * @param message - сущность сообщения.
      */
-    Optional<AudienceSendEvent> sendMessage(@NotNull Message message) throws RemoteException;
+    Optional<AudienceSendEvent> sendMessage(@NotNull Message message);
 
     /**
      * Отправить отправителю сообщение.
@@ -38,7 +37,7 @@ public interface EntityAudience {
      */
     @Deprecated
     @ApiStatus.ScheduledForRemoval
-    Optional<AudienceSendEvent> sendMessage(@Nullable String message) throws RemoteException;
+    Optional<AudienceSendEvent> sendMessage(@Nullable String message);
 
     /**
      * Отправить отправителю сообщение.
@@ -46,7 +45,7 @@ public interface EntityAudience {
      * @param message - сущность сообщения.
      * @param holders - переменные, меняющие текстовый образ сообщения.
      */
-    Optional<AudienceSendEvent> sendMessage(@NotNull Component message, @NotNull ComponentHolders holders) throws RemoteException;
+    Optional<AudienceSendEvent> sendMessage(@NotNull Component message, @NotNull ComponentHolders holders);
 
     /**
      * Отправить отправителю сообщение.
@@ -54,7 +53,7 @@ public interface EntityAudience {
      * @param message - сущность сообщения.
      * @param holders - переменные, меняющие текстовый образ сообщения.
      */
-    Optional<AudienceSendEvent> sendMessage(@NotNull Message message, @NotNull ComponentHolders holders) throws RemoteException;
+    Optional<AudienceSendEvent> sendMessage(@NotNull Message message, @NotNull ComponentHolders holders);
 
     /**
      * Отправить отправителю сообщение.
@@ -64,14 +63,14 @@ public interface EntityAudience {
      */
     @Deprecated
     @ApiStatus.ScheduledForRemoval
-    Optional<AudienceSendEvent> sendMessage(@Nullable String message, @NotNull ComponentHolders holders) throws RemoteException;
+    Optional<AudienceSendEvent> sendMessage(@Nullable String message, @NotNull ComponentHolders holders);
 
     /**
      * Проверка на наличие конкретного права у отправителя.
      *
      * @param permission - право доступа
      */
-    boolean hasPermission(@NotNull Permission permission) throws RemoteException;
+    boolean hasPermission(@NotNull Permission permission);
 
     /**
      * Проверка на наличие конкретного права у отправителя.
@@ -80,5 +79,5 @@ public interface EntityAudience {
      */
     @Deprecated
     @ApiStatus.ScheduledForRemoval
-    boolean hasPermission(@NotNull String permissionName) throws RemoteException;
+    boolean hasPermission(@NotNull String permissionName);
 }

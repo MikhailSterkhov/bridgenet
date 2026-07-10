@@ -1,19 +1,17 @@
 package me.moonways.bridgenet.model.service.reports;
 
-import java.rmi.Remote;
-import java.rmi.RemoteException;
 
-public interface Report extends Remote {
+public interface Report {
 
-    ReportReason getReason() throws RemoteException;
+    ReportReason getReason();
 
-    String getWhoReportedName() throws RemoteException;
+    String getWhoReportedName();
 
-    String getIntruderName() throws RemoteException;
+    String getIntruderName();
 
-    String getComment() throws RemoteException;
+    String getComment();
 
-    String getServerName() throws RemoteException;
+    String getServerName();
 
-    long getCreatedTimeMillis() throws RemoteException;
+    long getCreatedTimeMillis();
 }

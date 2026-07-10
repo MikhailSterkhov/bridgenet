@@ -1,7 +1,7 @@
 package me.moonways.endpoint.settings;
 
 import lombok.experimental.StandardException;
-import me.moonways.bridgenet.rmi.service.RemoteServiceException;
+import me.moonways.bridgenet.services.loader.RemoteServiceException;
 
 @StandardException
 public class SettingsEndpointException extends RemoteServiceException {

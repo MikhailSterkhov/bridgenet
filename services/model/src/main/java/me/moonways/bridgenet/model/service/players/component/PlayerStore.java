@@ -3,8 +3,6 @@ package me.moonways.bridgenet.model.service.players.component;
 import me.moonways.bridgenet.model.service.players.OfflinePlayer;
 import me.moonways.bridgenet.model.service.players.Player;
 
-import java.rmi.Remote;
-import java.rmi.RemoteException;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -16,7 +14,7 @@ import java.util.UUID;
  * а также для получения имени игрока по его идентификатору
  * и идентификатора игрока по его имени.
  */
-public interface PlayerStore extends Remote {
+public interface PlayerStore {
 
     /**
      * Получить офлайн игрока по его идентификатору.
@@ -24,7 +22,7 @@ public interface PlayerStore extends Remote {
      * @param id Идентификатор офлайн игрока.
      * @return - Объект OfflinePlayer, представляющий офлайн игрока.
      */
-    OfflinePlayer getOffline(UUID id) throws RemoteException;
+    OfflinePlayer getOffline(UUID id);
 
     /**
      * Получить офлайн игрока по его имени.
@@ -32,7 +30,7 @@ public interface PlayerStore extends Remote {
      * @param name Имя офлайн игрока.
      * @return - Объект OfflinePlayer, представляющий офлайн игрока.
      */
-    OfflinePlayer getOffline(String name) throws RemoteException;
+    OfflinePlayer getOffline(String name);
 
     /**
      * Получить онлайн игрока по его идентификатору.
@@ -40,7 +38,7 @@ public interface PlayerStore extends Remote {
      * @param id Идентификатор онлайн игрока.
      * @return - Опциональный объект Player, представляющий онлайн игрока, если такой игрок онлайн, в противном случае пустое значение.
      */
-    Optional<Player> get(UUID id) throws RemoteException;
+    Optional<Player> get(UUID id);
 
     /**
      * Получить онлайн игрока по его имени.
@@ -48,7 +46,7 @@ public interface PlayerStore extends Remote {
      * @param name Имя онлайн игрока.
      * @return - Опциональный объект Player, представляющий онлайн игрока, если такой игрок онлайн, в противном случае пустое значение.
      */
-    Optional<Player> get(String name) throws RemoteException;
+    Optional<Player> get(String name);
 
     /**
      * Получить имя игрока по его идентификатору.
@@ -56,7 +54,7 @@ public interface PlayerStore extends Remote {
      * @param id Идентификатор игрока.
      * @return - Имя игрока.
      */
-    String nameById(UUID id) throws RemoteException;
+    String nameById(UUID id);
 
     /**
      * Получить идентификатор игрока по его имени.
@@ -64,5 +62,5 @@ public interface PlayerStore extends Remote {
      * @param name - Имя игрока.
      * @return - Идентификатор игрока.
      */
-    UUID idByName(String name) throws RemoteException;
+    UUID idByName(String name);
 }

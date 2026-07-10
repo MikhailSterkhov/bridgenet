@@ -18,7 +18,6 @@ import me.moonways.bridgenet.model.util.Title;
 import me.moonways.endpoint.players.database.PlayerDescription;
 import net.kyori.adventure.text.Component;
 
-import java.rmi.RemoteException;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -40,11 +39,11 @@ public class PlayerStub extends OfflinePlayerStub implements Player {
     }
 
     @Override
-    public boolean isOnline() throws RemoteException {
+    public boolean isOnline() {
         return playerStore.get(getId()).isPresent();
     }
 
-    private Optional<AudienceSendEvent> writeAudienceMessage(Object message, MessageDirection direction, Component[] components) throws RemoteException {
+    private Optional<AudienceSendEvent> writeAudienceMessage(Object message, MessageDirection direction, Component[] components) {
         return !writeServerChannel(message) ? Optional.empty() :
                 Optional.of(
                         AudienceSendEvent.builder()
@@ -55,7 +54,7 @@ public class PlayerStub extends OfflinePlayerStub implements Player {
     }
 
     @Override
-    protected Optional<AudienceSendEvent> doMessageSend(Component message, ComponentHolders holders) throws RemoteException {
+    protected Optional<AudienceSendEvent> doMessageSend(Component message, ComponentHolders holders) {
         SendMessage sendMessage = createSendMessage(SendMessage.ChatType.CHAT, message, holders);
 
         return writeAudienceMessage(sendMessage, MessageDirection.MESSAGE,
@@ -63,12 +62,12 @@ public class PlayerStub extends OfflinePlayerStub implements Player {
     }
 
     @Override
-    public Optional<AudienceSendEvent> sendActionbar(Component message) throws RemoteException {
+    public Optional<AudienceSendEvent> sendActionbar(Component message) {
         return sendActionbar(message, ComponentHolders.begin());
     }
 
     @Override
-    public Optional<AudienceSendEvent> sendActionbar(Component message, ComponentHolders holders) throws RemoteException {
+    public Optional<AudienceSendEvent> sendActionbar(Component message, ComponentHolders holders) {
         SendMessage sendMessage = createSendMessage(SendMessage.ChatType.ACTION_BAR, message, holders);
 
         return writeAudienceMessage(sendMessage, MessageDirection.ACTIONBAR,
@@ -76,32 +75,32 @@ public class PlayerStub extends OfflinePlayerStub implements Player {
     }
 
     @Override
-    public Optional<AudienceSendEvent> sendActionbar(Message message) throws RemoteException {
+    public Optional<AudienceSendEvent> sendActionbar(Message message) {
         return sendActionbar(message, ComponentHolders.begin());
     }
 
     @Override
-    public Optional<AudienceSendEvent> sendActionbar(Message message, ComponentHolders holders) throws RemoteException {
+    public Optional<AudienceSendEvent> sendActionbar(Message message, ComponentHolders holders) {
         return sendActionbar(languageServiceModel.message(getLanguage(), message));
     }
 
     @Override
-    public Optional<AudienceSendEvent> sendActionbar(String message) throws RemoteException {
+    public Optional<AudienceSendEvent> sendActionbar(String message) {
         return sendMessage(message, ComponentHolders.begin());
     }
 
     @Override
-    public Optional<AudienceSendEvent> sendActionbar(String message, ComponentHolders holders) throws RemoteException {
+    public Optional<AudienceSendEvent> sendActionbar(String message, ComponentHolders holders) {
         return sendMessage(Component.text(message), holders);
     }
 
     @Override
-    public Optional<AudienceSendEvent> sendComponentTitle(Title<Component> title) throws RemoteException {
+    public Optional<AudienceSendEvent> sendComponentTitle(Title<Component> title) {
         return sendComponentTitle(title, ComponentHolders.begin());
     }
 
     @Override
-    public Optional<AudienceSendEvent> sendComponentTitle(Title<Component> title, ComponentHolders holders) throws RemoteException {
+    public Optional<AudienceSendEvent> sendComponentTitle(Title<Component> title, ComponentHolders holders) {
         SendTitle sendTitle = createSendTitle(title, holders);
         return writeAudienceMessage(sendTitle, MessageDirection.TITLE,
                 new Component[]
@@ -112,12 +111,12 @@ public class PlayerStub extends OfflinePlayerStub implements Player {
     }
 
     @Override
-    public Optional<AudienceSendEvent> sendTranslatedTitle(Title<Message> title) throws RemoteException {
+    public Optional<AudienceSendEvent> sendTranslatedTitle(Title<Message> title) {
         return sendTranslatedTitle(title, ComponentHolders.begin());
     }
 
     @Override
-    public Optional<AudienceSendEvent> sendTranslatedTitle(Title<Message> title, ComponentHolders holders) throws RemoteException {
+    public Optional<AudienceSendEvent> sendTranslatedTitle(Title<Message> title, ComponentHolders holders) {
         Message messageTitle = Optional.ofNullable(title.getTitle()).orElse(Message.empty());
         Message messageSubtitle = Optional.ofNullable(title.getSubtitle()).orElse(Message.empty());
 
@@ -132,12 +131,12 @@ public class PlayerStub extends OfflinePlayerStub implements Player {
     }
 
     @Override
-    public Optional<AudienceSendEvent> sendTitle(Title<String> title) throws RemoteException {
+    public Optional<AudienceSendEvent> sendTitle(Title<String> title) {
         return sendTitle(title, ComponentHolders.begin());
     }
 
     @Override
-    public Optional<AudienceSendEvent> sendTitle(Title<String> title, ComponentHolders holders) throws RemoteException {
+    public Optional<AudienceSendEvent> sendTitle(Title<String> title, ComponentHolders holders) {
         return sendComponentTitle(
                 Title.<Component>builder()
                         .title(Component.text(title.getTitle()))
@@ -170,7 +169,7 @@ public class PlayerStub extends OfflinePlayerStub implements Player {
                 fade.getFadeOut());
     }
 
-    private boolean writeServerChannel(Object message) throws RemoteException {
+    private boolean writeServerChannel(Object message) {
         Optional<EntityServer> serverOptional = connection.getServer();
 
         if (serverOptional.isPresent()) {

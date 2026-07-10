@@ -2,20 +2,13 @@ package me.moonways.endpoint.mojang;
 
 import me.moonways.bridgenet.model.service.mojang.MojangServiceModel;
 import me.moonways.bridgenet.model.service.mojang.Skin;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteContext;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteObject;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointRemoteContext;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointServiceObject;
 
-import java.rmi.RemoteException;
 import java.util.Optional;
 
-public final class MojangServiceEndpoint extends EndpointRemoteObject implements MojangServiceModel {
-    private static final long serialVersionUID = -4991953439627385251L;
-
+public final class MojangServiceEndpoint extends EndpointServiceObject implements MojangServiceModel {
     private final MojangApi mojangApi = new MojangApi();
-
-    public MojangServiceEndpoint() throws RemoteException {
-        super();
-    }
 
     @Override
     protected void construct(EndpointRemoteContext context) {
@@ -23,17 +16,17 @@ public final class MojangServiceEndpoint extends EndpointRemoteObject implements
     }
 
     @Override
-    public boolean isPirateNick(String nickname) throws RemoteException {
+    public boolean isPirateNick(String nickname) {
         return !mojangApi.getId(nickname).isPresent();
     }
 
     @Override
-    public boolean isPirateId(String id) throws RemoteException {
+    public boolean isPirateId(String id) {
         return !mojangApi.getNick(id).isPresent();
     }
 
     @Override
-    public Optional<String> getNameWithOriginCase(String nickname) throws RemoteException {
+    public Optional<String> getNameWithOriginCase(String nickname) {
         Optional<String> minecraftIdOptional = getMinecraftId(nickname);
         if (minecraftIdOptional.isPresent()) {
             return getMinecraftNick(minecraftIdOptional.get());
@@ -42,17 +35,17 @@ public final class MojangServiceEndpoint extends EndpointRemoteObject implements
     }
 
     @Override
-    public Optional<String> getMinecraftId(String nickname) throws RemoteException {
+    public Optional<String> getMinecraftId(String nickname) {
         return mojangApi.getId(nickname);
     }
 
     @Override
-    public Optional<String> getMinecraftNick(String id) throws RemoteException {
+    public Optional<String> getMinecraftNick(String id) {
         return mojangApi.getNick(id);
     }
 
     @Override
-    public Optional<Skin> getMinecraftSkinByNick(String nickname) throws RemoteException {
+    public Optional<Skin> getMinecraftSkinByNick(String nickname) {
         Optional<String> minecraftIdOptional = getMinecraftId(nickname);
         if (minecraftIdOptional.isPresent()) {
             return getMinecraftSkinById(minecraftIdOptional.get());
@@ -61,7 +54,7 @@ public final class MojangServiceEndpoint extends EndpointRemoteObject implements
     }
 
     @Override
-    public Optional<Skin> getMinecraftSkinById(String id) throws RemoteException {
+    public Optional<Skin> getMinecraftSkinById(String id) {
         return mojangApi.getProfile(id).map(profile ->
                 Skin.builder()
                         .id(profile.getId())

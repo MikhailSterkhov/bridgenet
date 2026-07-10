@@ -5,18 +5,17 @@ import me.moonways.bridgenet.model.service.friends.FriendsList;
 import me.moonways.bridgenet.model.service.friends.FriendsServiceModel;
 import me.moonways.bridgenet.test.data.TestConst;
 import me.moonways.bridgenet.test.engine.ModernTestEngineRunner;
-import me.moonways.bridgenet.test.engine.component.module.impl.RmiServicesModule;
+import me.moonways.bridgenet.test.engine.component.module.impl.ServicesModule;
 import me.moonways.bridgenet.test.engine.persistance.TestModules;
 import me.moonways.bridgenet.test.engine.persistance.TestOrdered;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.rmi.RemoteException;
 
 import static org.junit.Assert.assertEquals;
 
 @RunWith(ModernTestEngineRunner.class)
-@TestModules(RmiServicesModule.class)
+@TestModules(ServicesModule.class)
 public class FriendsServiceEndpointTest {
 
     @Inject
@@ -24,7 +23,7 @@ public class FriendsServiceEndpointTest {
 
     @Test
     @TestOrdered(1)
-    public void test_friendAdd() throws RemoteException {
+    public void test_friendAdd() {
         FriendsList friendsList = friendsServiceModel.getFriends(TestConst.Player.ID);
         friendsList.addFriend(TestConst.Friend.FRIEND_ID);
 
@@ -33,7 +32,7 @@ public class FriendsServiceEndpointTest {
 
     @Test
     @TestOrdered(2)
-    public void test_friendRemove() throws RemoteException {
+    public void test_friendRemove() {
         FriendsList friendsList = friendsServiceModel.getFriends(TestConst.Player.ID);
         friendsList.removeFriend(TestConst.Friend.FRIEND_ID);
 

@@ -7,7 +7,6 @@ import me.moonways.bridgenet.model.service.servers.ServerFlag;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.rmi.RemoteException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -33,13 +32,7 @@ public final class ServersContainer {
     public @Nullable UUID getExactServerKey(@NotNull String serverName) {
         return registeredServersMap.keySet()
                 .stream()
-                .filter(key -> {
-                    try {
-                        return registeredServersMap.get(key).getName().equalsIgnoreCase(serverName);
-                    } catch (RemoteException exception) {
-                        throw new ServersEndpointException(exception);
-                    }
-                })
+                .filter(key -> registeredServersMap.get(key).getName().equalsIgnoreCase(serverName))
                 .findFirst()
                 .orElse(null);
     }
@@ -47,13 +40,7 @@ public final class ServersContainer {
     public @Nullable UUID getServerKey(@NotNull String serverName) {
         return registeredServersMap.keySet()
                 .stream()
-                .filter(key -> {
-                    try {
-                        return registeredServersMap.get(key).getName().contains(serverName);
-                    } catch (RemoteException exception) {
-                        throw new ServersEndpointException(exception);
-                    }
-                })
+                .filter(key -> registeredServersMap.get(key).getName().contains(serverName))
                 .findFirst()
                 .orElse(null);
     }

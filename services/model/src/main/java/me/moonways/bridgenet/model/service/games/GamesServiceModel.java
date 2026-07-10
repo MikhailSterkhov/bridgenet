@@ -1,14 +1,12 @@
 package me.moonways.bridgenet.model.service.games;
 
 import me.moonways.bridgenet.model.service.servers.EntityServer;
-import me.moonways.bridgenet.rmi.service.RemoteService;
 import org.jetbrains.annotations.NotNull;
 
-import java.rmi.RemoteException;
 import java.util.List;
 import java.util.UUID;
 
-public interface GamesServiceModel extends RemoteService {
+public interface GamesServiceModel {
 
     /**
      * Получить игру по ее уникальному регистрационному
@@ -16,24 +14,24 @@ public interface GamesServiceModel extends RemoteService {
      *
      * @param uuid - идентификатор игры.
      */
-    Game getGame(@NotNull UUID uuid) throws RemoteException;
+    Game getGame(@NotNull UUID uuid);
 
     /**
      * Получить игру по ее названию.
      *
      * @param name - название игры.
      */
-    Game getGame(@NotNull String name) throws RemoteException;
+    Game getGame(@NotNull String name);
 
     /**
      * Получить список всех загруженных игр
      */
-    List<Game> getLoadedGames() throws RemoteException;
+    List<Game> getLoadedGames();
 
     /**
      * Проверить, является ли сервер игровым.
      *
      * @param server - сервер.
      */
-    boolean isGame(@NotNull EntityServer server) throws RemoteException;
+    boolean isGame(@NotNull EntityServer server);
 }

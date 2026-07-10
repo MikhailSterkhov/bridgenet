@@ -15,13 +15,12 @@ import me.moonways.bridgenet.model.service.permissions.permission.Permission;
 import me.moonways.bridgenet.model.service.permissions.permission.PermissionsManager;
 import me.moonways.bridgenet.test.data.TestConst;
 import me.moonways.bridgenet.test.engine.ModernTestEngineRunner;
-import me.moonways.bridgenet.test.engine.component.module.impl.RmiServicesModule;
+import me.moonways.bridgenet.test.engine.component.module.impl.ServicesModule;
 import me.moonways.bridgenet.test.engine.persistance.TestModules;
 import me.moonways.bridgenet.test.engine.persistance.TestOrdered;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.rmi.RemoteException;
 import java.util.Optional;
 import java.util.Set;
 
@@ -29,7 +28,7 @@ import static org.junit.Assert.*;
 
 @Log4j2
 @RunWith(ModernTestEngineRunner.class)
-@TestModules(RmiServicesModule.class)
+@TestModules(ServicesModule.class)
 public class PermissionsServiceEndpointTest {
 
     @Inject
@@ -40,21 +39,21 @@ public class PermissionsServiceEndpointTest {
 
     @Test
     @TestOrdered(1)
-    public void test_addPermission() throws RemoteException {
+    public void test_addPermission() {
         Optional<PlayerPermissionAddEvent> eventOptional = processPermissionAdd(TestConst.Permissions.TEMP_PERMISSION);
         assertTrue(eventOptional.isPresent());
     }
 
     @Test
     @TestOrdered(2)
-    public void test_addPermissionDuplicate() throws RemoteException {
+    public void test_addPermissionDuplicate() {
         Optional<PlayerPermissionAddEvent> eventOptional = processPermissionAdd(TestConst.Permissions.PERMISSION);
         assertFalse(eventOptional.isPresent());
     }
 
     @Test
     @TestOrdered(3)
-    public void test_getPermissions() throws RemoteException {
+    public void test_getPermissions() {
         PermissionsManager permissions = serviceModel.getPermissions();
 
         Set<Permission> activePermissions = permissions.getActivePermissions(TestConst.Player.ID);
@@ -65,7 +64,7 @@ public class PermissionsServiceEndpointTest {
 
     @Test
     @TestOrdered(3)
-    public void test_checkPermissions() throws RemoteException {
+    public void test_checkPermissions() {
         PermissionsManager permissions = serviceModel.getPermissions();
 
         assertTrue(permissions.hasPermission(TestConst.Player.ID, TestConst.Permissions.PERMISSION_NAME));
@@ -75,20 +74,20 @@ public class PermissionsServiceEndpointTest {
 
     @Test
     @TestOrdered(4)
-    public void test_removePermission() throws RemoteException {
+    public void test_removePermission() {
         Optional<PlayerPermissionRemoveEvent> eventOptional = processPermissionRemove(TestConst.Permissions.PERMISSION);
         assertTrue(eventOptional.isPresent());
     }
 
     @Test
     @TestOrdered(5)
-    public void test_removePermissionDuplicate() throws RemoteException {
+    public void test_removePermissionDuplicate() {
         Optional<PlayerPermissionRemoveEvent> eventOptional = processPermissionRemove(TestConst.Permissions.TEMP_PERMISSION);
         assertFalse(eventOptional.isPresent());
     }
 
 
-    private Optional<PlayerPermissionAddEvent> processPermissionAdd(Permission permission) throws RemoteException {
+    private Optional<PlayerPermissionAddEvent> processPermissionAdd(Permission permission) {
         eventService.subscribe(
                 EventSubscribeBuilder.newBuilder(PlayerPermissionAddEvent.class)
                         .follow(log::debug)
@@ -98,7 +97,7 @@ public class PermissionsServiceEndpointTest {
         return permissions.addPermission(TestConst.Player.ID, permission);
     }
 
-    private Optional<PlayerPermissionRemoveEvent> processPermissionRemove(Permission permission) throws RemoteException {
+    private Optional<PlayerPermissionRemoveEvent> processPermissionRemove(Permission permission) {
         eventService.subscribe(
                 EventSubscribeBuilder.newBuilder(PlayerPermissionRemoveEvent.class)
                         .follow(log::debug)
@@ -110,7 +109,7 @@ public class PermissionsServiceEndpointTest {
 
     @Test
     @TestOrdered(6)
-    public void test_getGroup() throws RemoteException {
+    public void test_getGroup() {
         GroupsManager groups = serviceModel.getGroups();
 
         Optional<PermissionGroup> permissionGroupOptional = groups.getPlayerGroup(TestConst.Player.ID);
@@ -124,7 +123,7 @@ public class PermissionsServiceEndpointTest {
 
     @Test
     @TestOrdered(7)
-    public void test_updateGroup() throws RemoteException {
+    public void test_updateGroup() {
         eventService.subscribe(
                 EventSubscribeBuilder.newBuilder(PlayerGroupUpdateEvent.class)
                         .follow(log::debug)

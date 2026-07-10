@@ -8,7 +8,6 @@ import me.moonways.bridgenet.model.service.games.Game;
 import me.moonways.bridgenet.model.service.games.GameState;
 
 import java.io.Serializable;
-import java.rmi.RemoteException;
 import java.util.UUID;
 
 @Getter
@@ -22,7 +21,7 @@ public class ActiveGameStub implements ActiveGame, Serializable {
     private GameState state;
 
     @Override
-    public String getMap() throws RemoteException {
+    public String getMap() {
         return state.getMap();
     }
 }

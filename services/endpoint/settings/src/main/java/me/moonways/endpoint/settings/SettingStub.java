@@ -8,7 +8,6 @@ import me.moonways.bridgenet.api.util.ExceptionallyConsumer;
 import me.moonways.bridgenet.model.service.settings.Setting;
 import me.moonways.bridgenet.model.service.settings.SettingID;
 
-import java.rmi.RemoteException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -29,7 +28,7 @@ public class SettingStub<T> implements Setting<T> {
     });
 
     @Override
-    public Setting<T> copy() throws RemoteException {
+    public Setting<T> copy() {
         return new SettingStub<>(id, value, subscriber);
     }
 
@@ -45,7 +44,7 @@ public class SettingStub<T> implements Setting<T> {
     }
 
     @Override
-    public boolean isEnabled() throws RemoteException {
+    public boolean isEnabled() {
         return !SettingStub.isDisabled(this);
     }
 
@@ -81,7 +80,7 @@ public class SettingStub<T> implements Setting<T> {
     }
 
     @Override
-    public Setting<T> ifEnabled(Consumer<T> consumer) throws RemoteException {
+    public Setting<T> ifEnabled(Consumer<T> consumer) {
         if (isEnabled()) {
             consumer.accept(value);
         }

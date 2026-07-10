@@ -5,8 +5,6 @@ import me.moonways.bridgenet.model.service.language.Language;
 import me.moonways.bridgenet.model.service.permissions.group.PermissionGroup;
 import me.moonways.bridgenet.model.service.permissions.permission.Permission;
 
-import java.rmi.Remote;
-import java.rmi.RemoteException;
 import java.util.Set;
 import java.util.UUID;
 
@@ -17,57 +15,57 @@ import java.util.UUID;
  * и имени офлайн игрока, его соединения с сервером,
  * списка разрешений, группы разрешений, уровня игрока и опыта.
  */
-public interface OfflinePlayer extends Remote, EntityAudience {
+public interface OfflinePlayer extends EntityAudience {
 
     /**
      * Получить идентификатор офлайн игрока.
      */
-    UUID getId() throws RemoteException;
+    UUID getId();
 
     /**
      * Получить имя офлайн игрока.
      */
-    String getName() throws RemoteException;
+    String getName();
 
     /**
      * Получить список разрешений офлайн игрока.
      */
-    Set<Permission> getPermissions() throws RemoteException;
+    Set<Permission> getPermissions();
 
     /**
      * Получить группу разрешений офлайн игрока.
      */
-    PermissionGroup getGroup() throws RemoteException;
+    PermissionGroup getGroup();
 
     /**
      * Получить выбранный пользователем тип мирового языка.
      */
-    Language getLanguage() throws RemoteException;
+    Language getLanguage();
 
     /**
      * Получить уровень офлайн игрока.
      */
-    int getLevel() throws RemoteException;
+    int getLevel();
 
     /**
      * Получить общий опыт офлайн игрока.
      */
-    int getTotalExperience() throws RemoteException;
+    int getTotalExperience();
 
     /**
      * Получить текущий опыт офлайн игрока.
      */
-    int getExperience() throws RemoteException;
+    int getExperience();
 
     /**
      * Получить количество опыта, необходимое для достижения
      * следующего уровня офлайн игрока.
      */
-    int getExperienceToNextLevel() throws RemoteException;
+    int getExperienceToNextLevel();
 
     /**
      * Проверить сущность игрока на то, актуален
      * ли для него сейчас статус "в сети".
      */
-    boolean isOnline() throws RemoteException;
+    boolean isOnline();
 }

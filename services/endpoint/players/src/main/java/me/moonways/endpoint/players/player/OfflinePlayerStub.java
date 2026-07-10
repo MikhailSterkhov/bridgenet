@@ -19,7 +19,6 @@ import net.kyori.adventure.text.Component;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.rmi.RemoteException;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -45,52 +44,52 @@ public class OfflinePlayerStub implements OfflinePlayer {
     protected LanguageServiceModel languageServiceModel;
 
     @Override
-    public Set<Permission> getPermissions() throws RemoteException {
+    public Set<Permission> getPermissions() {
         return permissionsServiceModel.getPermissions().getActivePermissions(getId());
     }
 
     @Override
-    public PermissionGroup getGroup() throws RemoteException {
+    public PermissionGroup getGroup() {
         return permissionsServiceModel.getGroups().getPlayerGroup(getId()).get();
     }
 
     @Override
-    public Language getLanguage() throws RemoteException {
+    public Language getLanguage() {
         return languageServiceModel.getPlayerLang(getId());
     }
 
     @Override
-    public int getLevel() throws RemoteException {
+    public int getLevel() {
         return PlayerLevelingStub.getLevel(getTotalExperience());
     }
 
     @Override
-    public int getTotalExperience() throws RemoteException {
+    public int getTotalExperience() {
         return description.getTotalExperience();
     }
 
     @Override
-    public int getExperience() throws RemoteException {
+    public int getExperience() {
         return getTotalExperience() - getExperienceToNextLevel();
     }
 
     @Override
-    public int getExperienceToNextLevel() throws RemoteException {
+    public int getExperienceToNextLevel() {
         return PlayerLevelingStub.getExperienceToNextLevel(getLevel());
     }
 
     @Override
-    public boolean isOnline() throws RemoteException {
+    public boolean isOnline() {
         return false;
     }
 
-    protected Optional<AudienceSendEvent> doMessageSend(Component message, ComponentHolders holders) throws RemoteException {
+    protected Optional<AudienceSendEvent> doMessageSend(Component message, ComponentHolders holders) {
         // override me.
         return Optional.empty();
     }
 
     @Override
-    public final Optional<AudienceSendEvent> sendMessage(@NotNull Component message) throws RemoteException {
+    public final Optional<AudienceSendEvent> sendMessage(@NotNull Component message) {
         if (!isOnline()) {
             throw new UnsupportedOperationException(String.format(PLAYER_IS_OFFLINE, getName()));
         }
@@ -98,7 +97,7 @@ public class OfflinePlayerStub implements OfflinePlayer {
     }
 
     @Override
-    public final Optional<AudienceSendEvent> sendMessage(@NotNull Message message) throws RemoteException {
+    public final Optional<AudienceSendEvent> sendMessage(@NotNull Message message) {
         if (!isOnline()) {
             throw new UnsupportedOperationException(String.format(PLAYER_IS_OFFLINE, getName()));
         }
@@ -106,7 +105,7 @@ public class OfflinePlayerStub implements OfflinePlayer {
     }
 
     @Override
-    public final Optional<AudienceSendEvent> sendMessage(@Nullable String message) throws RemoteException {
+    public final Optional<AudienceSendEvent> sendMessage(@Nullable String message) {
         if (!isOnline()) {
             throw new UnsupportedOperationException(String.format(PLAYER_IS_OFFLINE, getName()));
         }
@@ -114,7 +113,7 @@ public class OfflinePlayerStub implements OfflinePlayer {
     }
 
     @Override
-    public final Optional<AudienceSendEvent> sendMessage(@NotNull Component message, @NotNull ComponentHolders holders) throws RemoteException {
+    public final Optional<AudienceSendEvent> sendMessage(@NotNull Component message, @NotNull ComponentHolders holders) {
         if (!isOnline()) {
             throw new UnsupportedOperationException(String.format(PLAYER_IS_OFFLINE, getName()));
         }
@@ -122,7 +121,7 @@ public class OfflinePlayerStub implements OfflinePlayer {
     }
 
     @Override
-    public final Optional<AudienceSendEvent> sendMessage(@NotNull Message message, @NotNull ComponentHolders holders) throws RemoteException {
+    public final Optional<AudienceSendEvent> sendMessage(@NotNull Message message, @NotNull ComponentHolders holders) {
         if (!isOnline()) {
             throw new UnsupportedOperationException(String.format(PLAYER_IS_OFFLINE, getName()));
         }
@@ -131,7 +130,7 @@ public class OfflinePlayerStub implements OfflinePlayer {
     }
 
     @Override
-    public final Optional<AudienceSendEvent> sendMessage(@Nullable String message, @NotNull ComponentHolders holders) throws RemoteException {
+    public final Optional<AudienceSendEvent> sendMessage(@Nullable String message, @NotNull ComponentHolders holders) {
         if (!isOnline()) {
             throw new UnsupportedOperationException(String.format(PLAYER_IS_OFFLINE, getName()));
         }
@@ -139,12 +138,12 @@ public class OfflinePlayerStub implements OfflinePlayer {
     }
 
     @Override
-    public boolean hasPermission(@NotNull Permission permission) throws RemoteException {
+    public boolean hasPermission(@NotNull Permission permission) {
         return permissionsServiceModel.getPermissions().hasPermission(id, permission);
     }
 
     @Override
-    public boolean hasPermission(@NotNull String permissionName) throws RemoteException {
+    public boolean hasPermission(@NotNull String permissionName) {
         return permissionsServiceModel.getPermissions().hasPermission(id, permissionName);
     }
 }

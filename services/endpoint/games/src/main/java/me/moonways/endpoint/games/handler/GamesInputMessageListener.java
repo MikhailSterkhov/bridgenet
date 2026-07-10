@@ -17,7 +17,6 @@ import me.moonways.endpoint.games.stub.GameServerStub;
 import me.moonways.endpoint.games.stub.GameStateStub;
 import me.moonways.endpoint.games.stub.GameStub;
 
-import java.rmi.RemoteException;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -29,7 +28,7 @@ public class GamesInputMessageListener {
     private final GamesContainer container;
 
     @SubscribeMessage
-    public void handle(InboundMessageContext<CreateGame> context) throws RemoteException {
+    public void handle(InboundMessageContext<CreateGame> context) {
         ActiveGame activeGame = addActiveGame(context);
 
         UUID activeId = activeGame.getUniqueId();
@@ -41,7 +40,7 @@ public class GamesInputMessageListener {
     }
 
     @SubscribeMessage
-    public void handle(DeleteGame message) throws RemoteException {
+    public void handle(DeleteGame message) {
         Optional<ActiveGame> activeGameOptional = findActiveGame(message.getGameId(), message.getActiveId());
         if (activeGameOptional.isPresent()) {
 
@@ -72,7 +71,7 @@ public class GamesInputMessageListener {
     }
 
     @SubscribeMessage
-    public void handle(UpdateGame message) throws RemoteException {
+    public void handle(UpdateGame message) {
         Optional<ActiveGame> activeGameOptional = findActiveGame(message.getGameId(), message.getActiveId());
         if (activeGameOptional.isPresent()) {
 
@@ -102,7 +101,7 @@ public class GamesInputMessageListener {
                 .build();
     }
 
-    private GameServerStub toGameServerStub(InboundMessageContext<CreateGame> context) throws RemoteException {
+    private GameServerStub toGameServerStub(InboundMessageContext<CreateGame> context) {
         Optional<EntityServer> entityServerOptional = context.getChannel().getProperty(EntityServer.CHANNEL_PROPERTY);
 
         if (!entityServerOptional.isPresent()) {
@@ -122,7 +121,7 @@ public class GamesInputMessageListener {
         return game;
     }
 
-    private ActiveGame addActiveGame(InboundMessageContext<CreateGame> context) throws RemoteException {
+    private ActiveGame addActiveGame(InboundMessageContext<CreateGame> context) {
         GameStub gameStub = getGameStub(context.getMessage());
         GameServerStub gameServerStub = toGameServerStub(context);
 
@@ -135,7 +134,7 @@ public class GamesInputMessageListener {
         return activeGame;
     }
 
-    private Optional<ActiveGame> findActiveGame(UUID gameId, UUID activeId) throws RemoteException {
+    private Optional<ActiveGame> findActiveGame(UUID gameId, UUID activeId) {
         GameStub game = container.getGame(gameId);
         if (game != null) {
             return game.getActiveGame(activeId);

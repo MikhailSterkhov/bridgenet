@@ -3,13 +3,11 @@ package me.moonways.bridgenet.model.service.permissions.permission;
 import me.moonways.bridgenet.model.event.PlayerPermissionAddEvent;
 import me.moonways.bridgenet.model.event.PlayerPermissionRemoveEvent;
 
-import java.rmi.Remote;
-import java.rmi.RemoteException;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
-public interface PermissionsManager extends Remote {
+public interface PermissionsManager {
 
     /**
      * Получить список активных прав доступа
@@ -17,7 +15,7 @@ public interface PermissionsManager extends Remote {
      *
      * @param playerName - имя пользователя.
      */
-    Set<Permission> getActivePermissions(String playerName) throws RemoteException;
+    Set<Permission> getActivePermissions(String playerName);
 
     /**
      * Получить список активных прав доступа
@@ -25,7 +23,7 @@ public interface PermissionsManager extends Remote {
      *
      * @param playerId - идентификатор пользователя.
      */
-    Set<Permission> getActivePermissions(UUID playerId) throws RemoteException;
+    Set<Permission> getActivePermissions(UUID playerId);
 
     /**
      * Добавить пользователю новое право доступа.
@@ -35,7 +33,7 @@ public interface PermissionsManager extends Remote {
      * @return - прокинутое событие в сервисе событий
      * после успешной отработки текущей функции.
      */
-    Optional<PlayerPermissionAddEvent> addPermission(String playerName, Permission permission) throws RemoteException;
+    Optional<PlayerPermissionAddEvent> addPermission(String playerName, Permission permission);
 
     /**
      * Добавить пользователю новое право доступа.
@@ -45,7 +43,7 @@ public interface PermissionsManager extends Remote {
      * @return - прокинутое событие в сервисе событий
      * после успешной отработки текущей функции.
      */
-    Optional<PlayerPermissionAddEvent> addPermission(UUID playerId, Permission permission) throws RemoteException;
+    Optional<PlayerPermissionAddEvent> addPermission(UUID playerId, Permission permission);
 
     /**
      * Добавить пользователю новое право доступа.
@@ -55,7 +53,7 @@ public interface PermissionsManager extends Remote {
      * @return - прокинутое событие в сервисе событий
      * после успешной отработки текущей функции.
      */
-    Optional<PlayerPermissionAddEvent> addPermission(String playerName, String permissionName) throws RemoteException;
+    Optional<PlayerPermissionAddEvent> addPermission(String playerName, String permissionName);
 
     /**
      * Добавить пользователю новое право доступа.
@@ -65,7 +63,7 @@ public interface PermissionsManager extends Remote {
      * @return - прокинутое событие в сервисе событий
      * после успешной отработки текущей функции.
      */
-    Optional<PlayerPermissionAddEvent> addPermission(UUID playerId, String permissionName) throws RemoteException;
+    Optional<PlayerPermissionAddEvent> addPermission(UUID playerId, String permissionName);
 
     /**
      * Удалить у пользователя уже имеющееся у
@@ -76,7 +74,7 @@ public interface PermissionsManager extends Remote {
      * @return - прокинутое событие в сервисе событий
      * после успешной отработки текущей функции.
      */
-    Optional<PlayerPermissionRemoveEvent> removePermission(String playerName, Permission permission) throws RemoteException;
+    Optional<PlayerPermissionRemoveEvent> removePermission(String playerName, Permission permission);
 
     /**
      * Удалить у пользователя уже имеющееся у
@@ -87,7 +85,7 @@ public interface PermissionsManager extends Remote {
      * @return - прокинутое событие в сервисе событий
      * после успешной отработки текущей функции.
      */
-    Optional<PlayerPermissionRemoveEvent> removePermission(UUID playerId, Permission permission) throws RemoteException;
+    Optional<PlayerPermissionRemoveEvent> removePermission(UUID playerId, Permission permission);
 
     /**
      * Удалить у пользователя уже имеющееся у
@@ -98,7 +96,7 @@ public interface PermissionsManager extends Remote {
      * @return - прокинутое событие в сервисе событий
      * после успешной отработки текущей функции.
      */
-    Optional<PlayerPermissionRemoveEvent> removePermission(String playerName, String permissionName) throws RemoteException;
+    Optional<PlayerPermissionRemoveEvent> removePermission(String playerName, String permissionName);
 
     /**
      * Удалить у пользователя уже имеющееся у
@@ -109,7 +107,7 @@ public interface PermissionsManager extends Remote {
      * @return - прокинутое событие в сервисе событий
      * после успешной отработки текущей функции.
      */
-    Optional<PlayerPermissionRemoveEvent> removePermission(UUID playerId, String permissionName) throws RemoteException;
+    Optional<PlayerPermissionRemoveEvent> removePermission(UUID playerId, String permissionName);
 
     /**
      * Очистить имеющийся список индивидуальных прав
@@ -117,7 +115,7 @@ public interface PermissionsManager extends Remote {
      *
      * @param playerName - имя пользователя.
      */
-    void clearPermissions(String playerName) throws RemoteException;
+    void clearPermissions(String playerName);
 
     /**
      * Очистить имеющийся список индивидуальных прав
@@ -125,7 +123,7 @@ public interface PermissionsManager extends Remote {
      *
      * @param playerId - идентификатор пользователя.
      */
-    void clearPermissions(UUID playerId) throws RemoteException;
+    void clearPermissions(UUID playerId);
 
     /**
      * Проверить наличие индивидуального права доступа
@@ -134,7 +132,7 @@ public interface PermissionsManager extends Remote {
      * @param playerName - имя пользователя
      * @param permission - instance проверяемого права доступа.
      */
-    boolean hasPermission(String playerName, Permission permission) throws RemoteException;
+    boolean hasPermission(String playerName, Permission permission);
 
     /**
      * Проверить наличие индивидуального права доступа
@@ -143,7 +141,7 @@ public interface PermissionsManager extends Remote {
      * @param playerId   - идентификатор пользователя
      * @param permission - instance проверяемого права доступа.
      */
-    boolean hasPermission(UUID playerId, Permission permission) throws RemoteException;
+    boolean hasPermission(UUID playerId, Permission permission);
 
     /**
      * Проверить наличие индивидуального права доступа
@@ -152,7 +150,7 @@ public interface PermissionsManager extends Remote {
      * @param playerName     - имя пользователя
      * @param permissionName - наименование проверяемого права доступа.
      */
-    boolean hasPermission(String playerName, String permissionName) throws RemoteException;
+    boolean hasPermission(String playerName, String permissionName);
 
     /**
      * Проверить наличие индивидуального права доступа
@@ -161,5 +159,5 @@ public interface PermissionsManager extends Remote {
      * @param playerId       - идентификатор пользователя
      * @param permissionName - наименование проверяемого права доступа.
      */
-    boolean hasPermission(UUID playerId, String permissionName) throws RemoteException;
+    boolean hasPermission(UUID playerId, String permissionName);
 }

@@ -8,26 +8,25 @@ import me.moonways.bridgenet.model.service.settings.Setting;
 import me.moonways.bridgenet.model.service.settings.SettingID;
 import me.moonways.bridgenet.test.data.TestConst;
 import me.moonways.bridgenet.test.engine.ModernTestEngineRunner;
-import me.moonways.bridgenet.test.engine.component.module.impl.RmiServicesModule;
+import me.moonways.bridgenet.test.engine.component.module.impl.ServicesModule;
 import me.moonways.bridgenet.test.engine.persistance.TestModules;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.rmi.RemoteException;
 import java.util.Collection;
 
 import static org.junit.Assert.*;
 
 @Log4j2
 @RunWith(ModernTestEngineRunner.class)
-@TestModules(RmiServicesModule.class)
+@TestModules(ServicesModule.class)
 public class SettingsServiceEndpointTest {
 
     @Inject
     private PlayerSettingsServiceModel serviceModel;
 
     @Test
-    public void test_totalSettings() throws RemoteException {
+    public void test_totalSettings() {
         Collection<SettingID<?>> totalSettings = serviceModel.getTotalSettings();
 
         totalSettings.forEach(settingID ->
@@ -38,7 +37,7 @@ public class SettingsServiceEndpointTest {
     }
 
     @Test
-    public void test_individualSettingGet() throws RemoteException {
+    public void test_individualSettingGet() {
         Setting<ChatColor> setting = getExampleSetting();
 
         log.debug(setting);
@@ -48,7 +47,7 @@ public class SettingsServiceEndpointTest {
     }
 
     @Test
-    public void test_individualSettingUpdate() throws RemoteException {
+    public void test_individualSettingUpdate() {
         Setting<ChatColor> setting = getExampleSetting();
 
         setting.set(ChatColor.GREEN);
@@ -59,7 +58,7 @@ public class SettingsServiceEndpointTest {
         assertTrue(setting.isEnabled());
     }
 
-    public Setting<ChatColor> getExampleSetting() throws RemoteException {
+    public Setting<ChatColor> getExampleSetting() {
         return serviceModel.getSetting(TestConst.Player.ID, SettingID.GLOWING_COLOR);
     }
 }

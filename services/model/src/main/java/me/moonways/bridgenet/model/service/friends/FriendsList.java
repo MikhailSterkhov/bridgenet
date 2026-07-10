@@ -1,25 +1,23 @@
 package me.moonways.bridgenet.model.service.friends;
 
-import java.rmi.Remote;
-import java.rmi.RemoteException;
 import java.util.Set;
 import java.util.UUID;
 
-public interface FriendsList extends Remote {
+public interface FriendsList {
 
-    boolean addFriend(UUID uuid) throws RemoteException;
+    boolean addFriend(UUID uuid);
 
-    boolean addFriend(String name) throws RemoteException;
+    boolean addFriend(String name);
 
-    boolean removeFriend(UUID uuid) throws RemoteException;
+    boolean removeFriend(UUID uuid);
 
-    boolean removeFriend(String name) throws RemoteException;
+    boolean removeFriend(String name);
 
-    boolean hasFriend(UUID uuid) throws RemoteException;
+    boolean hasFriend(UUID uuid);
 
-    boolean hasFriend(String name) throws RemoteException;
+    boolean hasFriend(String name);
 
-    Set<UUID> getFriendsIDs() throws RemoteException;
+    Set<UUID> getFriendsIDs();
 
-    Set<String> getFriendsNames() throws RemoteException;
+    Set<String> getFriendsNames();
 }

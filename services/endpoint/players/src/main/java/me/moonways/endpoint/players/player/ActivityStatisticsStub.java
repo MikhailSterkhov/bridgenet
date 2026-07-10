@@ -3,7 +3,6 @@ package me.moonways.endpoint.players.player;
 import me.moonways.bridgenet.model.service.players.component.statistic.ActivityStatistics;
 import me.moonways.bridgenet.model.service.players.component.statistic.Statistic;
 
-import java.rmi.RemoteException;
 import java.util.EnumMap;
 
 public final class ActivityStatisticsStub implements ActivityStatistics {
@@ -12,27 +11,27 @@ public final class ActivityStatisticsStub implements ActivityStatistics {
             = new EnumMap<>(Statistic.class);
 
     @Override
-    public void reset() throws RemoteException {
+    public void reset() {
         statisticsValuesMap.clear();
     }
 
     @Override
-    public void setInt(Statistic statistic, int value) throws RemoteException {
+    public void setInt(Statistic statistic, int value) {
         statisticsValuesMap.put(statistic, value);
     }
 
     @Override
-    public void setLong(Statistic statistic, long value) throws RemoteException {
+    public void setLong(Statistic statistic, long value) {
         statisticsValuesMap.put(statistic, value);
     }
 
     @Override
-    public int getInt(Statistic statistic) throws RemoteException {
+    public int getInt(Statistic statistic) {
         return (int) statisticsValuesMap.get(statistic);
     }
 
     @Override
-    public long getLong(Statistic statistic) throws RemoteException {
+    public long getLong(Statistic statistic) {
         return (long) statisticsValuesMap.get(statistic);
     }
 }

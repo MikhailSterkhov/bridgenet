@@ -13,7 +13,6 @@ import me.moonways.bridgenet.model.service.players.Player;
 import me.moonways.bridgenet.model.service.players.PlayersServiceModel;
 import net.kyori.adventure.text.Component;
 
-import java.rmi.RemoteException;
 import java.util.Arrays;
 
 @Command("gui")
@@ -25,7 +24,7 @@ public class TestGuiCommand {
     private PlayersServiceModel playersServiceModel;
 
     @MentorExecutor
-    public void defaultCommand(CommandSession session) throws RemoteException {
+    public void defaultCommand(CommandSession session) {
         if (session.getSender() instanceof ConsoleCommandSender) {
             session.getSender().sendMessage(ChatColor.RED + "This command can use only players!");
             return;

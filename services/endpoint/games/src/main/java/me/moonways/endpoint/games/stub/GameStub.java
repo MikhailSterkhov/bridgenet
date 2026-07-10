@@ -8,7 +8,6 @@ import me.moonways.bridgenet.model.service.games.GameServer;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.Serializable;
-import java.rmi.RemoteException;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -31,7 +30,7 @@ public class GameStub implements Game, Serializable {
     }
 
     @Override
-    public Optional<ActiveGame> getActiveGame(UUID uniqueId) throws RemoteException {
+    public Optional<ActiveGame> getActiveGame(UUID uniqueId) {
         for (ActiveGame activeGame : getActiveGames()) {
             if (activeGame.getUniqueId().equals(uniqueId)) {
                 return Optional.of(activeGame);
@@ -41,7 +40,7 @@ public class GameStub implements Game, Serializable {
     }
 
     @Override
-    public List<String> getLoadedMaps() throws RemoteException {
+    public List<String> getLoadedMaps() {
         Set<String> loadedMaps = new HashSet<>();
 
         for (ActiveGame activeGame : getActiveGames()) {
@@ -52,12 +51,12 @@ public class GameStub implements Game, Serializable {
     }
 
     @Override
-    public List<GameServer> getLoadedServers() throws RemoteException {
+    public List<GameServer> getLoadedServers() {
         return Collections.unmodifiableList(loadedServers);
     }
 
     @Override
-    public List<ActiveGame> getActiveGames() throws RemoteException {
+    public List<ActiveGame> getActiveGames() {
         List<ActiveGame> activeGamesList = new ArrayList<>();
 
         for (GameServer gameServer : getLoadedServers()) {
@@ -68,7 +67,7 @@ public class GameStub implements Game, Serializable {
     }
 
     @Override
-    public List<ActiveGame> getActiveGamesByMap(@NotNull String map) throws RemoteException {
+    public List<ActiveGame> getActiveGamesByMap(@NotNull String map) {
         List<ActiveGame> gamesByMapList = new ArrayList<>();
 
         for (ActiveGame activeGame : getActiveGames()) {

@@ -2,23 +2,21 @@ package me.moonways.bridgenet.model.service.games;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.rmi.Remote;
-import java.rmi.RemoteException;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface Game extends Remote {
+public interface Game {
 
     /**
      * Получить уникальный регистрационный номер игры.
      */
-    UUID getUniqueId() throws RemoteException;
+    UUID getUniqueId();
 
     /**
      * Получить название игры.
      */
-    String getName() throws RemoteException;
+    String getName();
 
     /**
      * Получить активную игровую карту, загруженную в игру
@@ -26,22 +24,22 @@ public interface Game extends Remote {
      *
      * @param uniqueId - ключ активной игры.
      */
-    Optional<ActiveGame> getActiveGame(UUID uniqueId) throws RemoteException;
+    Optional<ActiveGame> getActiveGame(UUID uniqueId);
 
     /**
      * Получить список загруженных карт в этой игре
      */
-    List<String> getLoadedMaps() throws RemoteException;
+    List<String> getLoadedMaps();
 
     /**
      * Получить список загруженных серверов для этой игры
      */
-    List<GameServer> getLoadedServers() throws RemoteException;
+    List<GameServer> getLoadedServers();
 
     /**
      * Получить список активных игровых карт для этой игры.
      */
-    List<ActiveGame> getActiveGames() throws RemoteException;
+    List<ActiveGame> getActiveGames();
 
     /**
      * Получить список активных игровых карт, запущенных
@@ -49,5 +47,5 @@ public interface Game extends Remote {
      *
      * @param map - название игровой карты.
      */
-    List<ActiveGame> getActiveGamesByMap(@NotNull String map) throws RemoteException;
+    List<ActiveGame> getActiveGamesByMap(@NotNull String map);
 }

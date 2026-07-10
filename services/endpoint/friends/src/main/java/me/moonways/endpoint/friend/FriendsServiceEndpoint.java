@@ -7,11 +7,10 @@ import me.moonways.bridgenet.api.inject.Inject;
 import me.moonways.bridgenet.model.service.friends.FriendsList;
 import me.moonways.bridgenet.model.service.friends.FriendsServiceModel;
 import me.moonways.bridgenet.model.service.players.PlayersServiceModel;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteContext;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteObject;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointRemoteContext;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointServiceObject;
 import me.moonways.endpoint.friend.event.FriendActivityListener;
 
-import java.rmi.RemoteException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
@@ -19,9 +18,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 @Getter
-public final class FriendsServiceEndpoint extends EndpointRemoteObject implements FriendsServiceModel {
-
-    private static final long serialVersionUID = 6945343361490533671L;
+public final class FriendsServiceEndpoint extends EndpointServiceObject implements FriendsServiceModel {
 
     private final Cache<UUID, FriendsList> playerFriendsCache = CacheBuilder.newBuilder()
             .expireAfterAccess(1, TimeUnit.HOURS)
@@ -32,16 +29,12 @@ public final class FriendsServiceEndpoint extends EndpointRemoteObject implement
     @Inject
     private PlayersServiceModel playersServiceModel;
 
-    public FriendsServiceEndpoint() throws RemoteException {
-        super();
-    }
-
     @Override
     protected void construct(EndpointRemoteContext context) {
         context.registerEventListener(new FriendActivityListener());
     }
 
-    private FriendsList lookupPlayerFriends(UUID playerUUID) throws RemoteException {
+    private FriendsList lookupPlayerFriends(UUID playerUUID) {
         List<UUID> friendsList = repository.findFriendsList(playerUUID);
         FriendsListStub friendsListStub = new FriendsListStub(
                 playerUUID,
@@ -54,7 +47,7 @@ public final class FriendsServiceEndpoint extends EndpointRemoteObject implement
     }
 
     @Override
-    public FriendsList getFriends(UUID playerUUID) throws RemoteException {
+    public FriendsList getFriends(UUID playerUUID) {
         playerFriendsCache.cleanUp();
         ConcurrentMap<UUID, FriendsList> cacheMap = playerFriendsCache.asMap();
 
@@ -69,7 +62,7 @@ public final class FriendsServiceEndpoint extends EndpointRemoteObject implement
     }
 
     @Override
-    public FriendsList getFriends(String playerName) throws RemoteException {
+    public FriendsList getFriends(String playerName) {
         UUID playerId = playersServiceModel.store().idByName(playerName);
         return getFriends(playerId);
     }

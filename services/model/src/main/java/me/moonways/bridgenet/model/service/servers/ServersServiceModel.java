@@ -1,37 +1,35 @@
 package me.moonways.bridgenet.model.service.servers;
 
-import me.moonways.bridgenet.rmi.service.RemoteService;
 import org.jetbrains.annotations.NotNull;
 
-import java.rmi.RemoteException;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface ServersServiceModel extends RemoteService {
+public interface ServersServiceModel {
 
     /**
      * Получить список всех зарегистрированных серверов.
      */
-    List<EntityServer> getTotalServers() throws RemoteException;
+    List<EntityServer> getTotalServers();
 
     /**
      * Получить список стандартных серверов для входа
      * игроков или других возможных операций.
      */
-    List<EntityServer> getDefaultServers() throws RemoteException;
+    List<EntityServer> getDefaultServers();
 
     /**
      * Получить список серверов, которые отвечают за редирект
      * при падении текущих серверов.
      */
-    List<EntityServer> getFallbackServers() throws RemoteException;
+    List<EntityServer> getFallbackServers();
 
     /**
      * Получить список серверов, которые отвечают за редирект
      * при падении текущих серверов.
      */
-    Optional<EntityServer> getServerExact(@NotNull String serverName) throws RemoteException;
+    Optional<EntityServer> getServerExact(@NotNull String serverName);
 
     /**
      * Получить инициализированный и подключенный сервер
@@ -39,7 +37,7 @@ public interface ServersServiceModel extends RemoteService {
      *
      * @param uuid - ключ сервера.
      */
-    Optional<EntityServer> getServerExact(@NotNull UUID uuid) throws RemoteException;
+    Optional<EntityServer> getServerExact(@NotNull UUID uuid);
 
     /**
      * Получить инициализированный и подключенный сервер
@@ -47,7 +45,7 @@ public interface ServersServiceModel extends RemoteService {
      *
      * @param serverName - примерное название сервера.
      */
-    Optional<EntityServer> getServer(@NotNull String serverName) throws RemoteException;
+    Optional<EntityServer> getServer(@NotNull String serverName);
 
     /**
      * Проверить сервер, подключен ли он к системе по
@@ -55,7 +53,7 @@ public interface ServersServiceModel extends RemoteService {
      *
      * @param uuid - ключ сервера.
      */
-    boolean hasServer(@NotNull UUID uuid) throws RemoteException;
+    boolean hasServer(@NotNull UUID uuid);
 
     /**
      * Проверить сервер, подключен ли он к системе по
@@ -63,5 +61,5 @@ public interface ServersServiceModel extends RemoteService {
      *
      * @param serverName - название сервера.
      */
-    boolean hasServer(@NotNull String serverName) throws RemoteException;
+    boolean hasServer(@NotNull String serverName);
 }

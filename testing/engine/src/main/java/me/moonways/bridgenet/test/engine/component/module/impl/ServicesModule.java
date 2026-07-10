@@ -1,16 +1,16 @@
 package me.moonways.bridgenet.test.engine.component.module.impl;
 
-import me.moonways.bridgenet.rmi.service.RemoteServicesManagement;
+import me.moonways.bridgenet.services.loader.EndpointsService;
 import me.moonways.bridgenet.test.engine.component.module.ModuleAdapter;
 import me.moonways.bridgenet.test.engine.component.module.ModuleConfig;
 
 import java.util.Arrays;
 
-public class RmiServicesModule extends ModuleAdapter {
+public class ServicesModule extends ModuleAdapter {
 
     private static final String SERVICES_MODEL__PACKAGE = "me.moonways.bridgenet.model";
 
-    public RmiServicesModule() {
+    public ServicesModule() {
         super(ModuleConfig.builder()
                 .dependencies(
                         Arrays.asList(
@@ -22,7 +22,7 @@ public class RmiServicesModule extends ModuleAdapter {
                 .packagesToScanning(
                         Arrays.asList(
                                 SERVICES_MODEL__PACKAGE,
-                                fromClassPackage(RemoteServicesManagement.class)
+                                fromClassPackage(EndpointsService.class)
                         ))
                 .build());
     }

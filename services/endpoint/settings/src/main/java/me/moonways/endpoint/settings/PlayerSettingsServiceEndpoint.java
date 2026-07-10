@@ -7,15 +7,12 @@ import me.moonways.bridgenet.model.service.settings.PlayerSettingsServiceModel;
 import me.moonways.bridgenet.model.service.settings.Setting;
 import me.moonways.bridgenet.model.service.settings.SettingID;
 import me.moonways.bridgenet.model.util.PlayerIdMap;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteContext;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteObject;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointRemoteContext;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointServiceObject;
 
-import java.rmi.RemoteException;
 import java.util.*;
 
-public class PlayerSettingsServiceEndpoint extends EndpointRemoteObject implements PlayerSettingsServiceModel {
-
-    private static final long serialVersionUID = 4593442611825894452L;
+public class PlayerSettingsServiceEndpoint extends EndpointServiceObject implements PlayerSettingsServiceModel {
 
     @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
     private PlayerIdMap<PlayerSettings> playerSettingsCacheMap;
@@ -25,12 +22,8 @@ public class PlayerSettingsServiceEndpoint extends EndpointRemoteObject implemen
     @Inject
     private BeansService beansService;
 
-    public PlayerSettingsServiceEndpoint() throws RemoteException {
-        super();
-    }
-
     @Override
-    protected void construct(EndpointRemoteContext context) throws RemoteException {
+    protected void construct(EndpointRemoteContext context) {
         this.playerSettingsCacheMap = new PlayerIdMap<>();
     }
 
@@ -44,18 +37,18 @@ public class PlayerSettingsServiceEndpoint extends EndpointRemoteObject implemen
     }
 
     @Override
-    public Collection<SettingID<?>> getTotalSettings() throws RemoteException {
+    public Collection<SettingID<?>> getTotalSettings() {
         return Collections.unmodifiableCollection(Arrays.asList(SettingID.TYPES));
     }
 
     @Override
-    public <T> Setting<T> getSetting(UUID playerId, SettingID<T> id) throws RemoteException {
+    public <T> Setting<T> getSetting(UUID playerId, SettingID<T> id) {
         PlayerSettings playerSettings = playerSettingsCacheMap.getOrPut(playerId, () -> createPlayerSettings(playerId));
         return playerSettings.get(id);
     }
 
     @Override
-    public <T> Setting<T> getSetting(String playerName, SettingID<T> id) throws RemoteException {
+    public <T> Setting<T> getSetting(String playerName, SettingID<T> id) {
         return getSetting(playersServiceModel.store().idByName(playerName), id);
     }
 }

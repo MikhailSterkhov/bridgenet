@@ -4,8 +4,6 @@ import me.moonways.bridgenet.model.service.gui.click.ItemClickListener;
 import me.moonways.bridgenet.model.service.gui.item.ItemStack;
 import me.moonways.bridgenet.model.service.players.Player;
 
-import java.rmi.Remote;
-import java.rmi.RemoteException;
 import java.util.UUID;
 
 /**
@@ -13,17 +11,17 @@ import java.util.UUID;
  * Этот интерфейс предоставляет методы для получения информации о GUI,
  * установки элементов в слотах, удаления элементов и добавления слушателей событий кликов.
  */
-public interface Gui extends Remote {
+public interface Gui {
 
     /**
      * @return Идентификатор GUI.
      */
-    UUID getId() throws RemoteException;
+    UUID getId();
 
     /**
      * @return Описание GUI.
      */
-    GuiDescription getDescription() throws RemoteException;
+    GuiDescription getDescription();
 
     /**
      * Получить элемент в указанном слоте GUI.
@@ -31,7 +29,7 @@ public interface Gui extends Remote {
      * @param slot - Слот GUI, в котором находится элемент.
      * @return - Элемент ItemStack в указанном слоте.
      */
-    ItemStack getItem(GuiSlot slot) throws RemoteException;
+    ItemStack getItem(GuiSlot slot);
 
     /**
      * Установить элемент в указанный слот GUI с указанным слушателем событий кликов.
@@ -40,7 +38,7 @@ public interface Gui extends Remote {
      * @param itemStack     - Элемент ItemStack для установки.
      * @param clickListener - Слушатель событий кликов для элемента.
      */
-    void setItem(GuiSlot slot, ItemStack itemStack, ItemClickListener clickListener) throws RemoteException;
+    void setItem(GuiSlot slot, ItemStack itemStack, ItemClickListener clickListener);
 
     /**
      * Установить элемент в указанный слот GUI.
@@ -48,21 +46,21 @@ public interface Gui extends Remote {
      * @param slot      - Слот GUI, в который нужно установить элемент.
      * @param itemStack - Элемент ItemStack для установки.
      */
-    void setItem(GuiSlot slot, ItemStack itemStack) throws RemoteException;
+    void setItem(GuiSlot slot, ItemStack itemStack);
 
     /**
      * Удалить элемент из указанного слота GUI.
      *
      * @param slot - Слот GUI, из которого нужно удалить элемент.
      */
-    void removeItem(GuiSlot slot) throws RemoteException;
+    void removeItem(GuiSlot slot);
 
     /**
      * Добавить слушателя событий кликов для всего GUI.
      *
      * @param listener - Слушатель событий кликов для всего GUI.
      */
-    void addGlobalListener(ItemClickListener listener) throws RemoteException;
+    void addGlobalListener(ItemClickListener listener);
 
     /**
      * Добавить слушателя событий кликов для указанного слота GUI.
@@ -70,11 +68,11 @@ public interface Gui extends Remote {
      * @param slot     - Слот GUI, для которого нужно добавить слушателя событий кликов.
      * @param listener - Слушатель событий кликов для указанного слота GUI.
      */
-    void addGlobalListener(GuiSlot slot, ItemClickListener listener) throws RemoteException;
+    void addGlobalListener(GuiSlot slot, ItemClickListener listener);
 
     /**
      * Открыть текущий инвентарь определенному
      * игроку, находящемуся в статусе онлайн.
      */
-    void open(Player player) throws RemoteException;
+    void open(Player player);
 }

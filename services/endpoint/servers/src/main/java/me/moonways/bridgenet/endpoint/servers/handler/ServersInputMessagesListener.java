@@ -23,7 +23,6 @@ import me.moonways.bridgenet.mtp.message.persistence.InboundMessageListener;
 import me.moonways.bridgenet.mtp.message.persistence.SubscribeMessage;
 
 import java.net.InetSocketAddress;
-import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -103,7 +102,7 @@ public class ServersInputMessagesListener {
     }
 
     @SubscribeMessage
-    public void handle(Disconnect disconnect) throws RemoteException {
+    public void handle(Disconnect disconnect) {
         if (disconnect.getType() == Disconnect.Type.SERVER) {
             doServerDisconnect(disconnect);
         }
@@ -167,7 +166,7 @@ public class ServersInputMessagesListener {
                 .build();
     }
 
-    private void doServerDisconnect(Disconnect disconnect) throws RemoteException {
+    private void doServerDisconnect(Disconnect disconnect) {
         UUID serverId = disconnect.getUuid();
         ConnectedServerStub server = container.getConnectedServerExact(serverId);
 

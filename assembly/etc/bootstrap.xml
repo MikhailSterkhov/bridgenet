@@ -23,7 +23,7 @@
             <displayName>Endpoints</displayName>
             <priorityID>4</priorityID>
             <priority>RUNNER</priority>
-            <executorPath>me.moonways.bridgenet.bootstrap.hook.type.RunRMIEndpointsHook</executorPath>
+            <executorPath>me.moonways.bridgenet.bootstrap.hook.type.RunEndpointsHook</executorPath>
         </hook>
         <hook>
             <displayName>ConsoleStart</displayName>

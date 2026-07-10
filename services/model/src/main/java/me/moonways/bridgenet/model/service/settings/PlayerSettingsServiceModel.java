@@ -1,18 +1,16 @@
 package me.moonways.bridgenet.model.service.settings;
 
-import me.moonways.bridgenet.rmi.service.RemoteService;
 
-import java.rmi.RemoteException;
 import java.util.Collection;
 import java.util.UUID;
 
-public interface PlayerSettingsServiceModel extends RemoteService {
+public interface PlayerSettingsServiceModel {
 
     /**
      * Получить список идентификаторов всех возможных
      * пользовательских настроек
      */
-    Collection<SettingID<?>> getTotalSettings() throws RemoteException;
+    Collection<SettingID<?>> getTotalSettings();
 
     /**
      * Получить параметры пользовательской настройки по
@@ -21,7 +19,7 @@ public interface PlayerSettingsServiceModel extends RemoteService {
      * @param playerId - уникальный идентификатор пользователя.
      * @param id       - идентификатор пользовательской настройки.
      */
-    <T> Setting<T> getSetting(UUID playerId, SettingID<T> id) throws RemoteException;
+    <T> Setting<T> getSetting(UUID playerId, SettingID<T> id);
 
     /**
      * Получить параметры пользовательской настройки по
@@ -30,5 +28,5 @@ public interface PlayerSettingsServiceModel extends RemoteService {
      * @param playerName - имя пользователя.
      * @param id         - идентификатор пользовательской настройки.
      */
-    <T> Setting<T> getSetting(String playerName, SettingID<T> id) throws RemoteException;
+    <T> Setting<T> getSetting(String playerName, SettingID<T> id);
 }

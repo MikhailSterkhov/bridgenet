@@ -7,7 +7,6 @@ import me.moonways.bridgenet.model.service.gui.GuiSlot;
 import me.moonways.bridgenet.model.service.gui.item.ItemStack;
 import me.moonways.bridgenet.model.service.players.Player;
 
-import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +24,7 @@ public class GuiNetworkManager {
      * @param player игрок, для которого открывается GUI.
      * @param gui    графический интерфейс, который необходимо открыть.
      */
-    public void openGui(Player player, Gui gui) throws RemoteException {
+    public void openGui(Player player, Gui gui) {
         OpenGui openGui = new OpenGui(
                 player.getId(),
                 gui.getId(),
@@ -39,7 +38,7 @@ public class GuiNetworkManager {
      *
      * @param player игрок, для которого закрывается GUI.
      */
-    public void closeOpenedGui(Player player) throws RemoteException {
+    public void closeOpenedGui(Player player) {
         player.getConnection().send(new CloseGui(player.getId()));
     }
 

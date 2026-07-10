@@ -1,25 +1,23 @@
 package me.moonways.bridgenet.model.service.games;
 
-import java.rmi.Remote;
-import java.rmi.RemoteException;
 import java.util.UUID;
 
-public interface ActiveGame extends Remote {
+public interface ActiveGame {
 
     /**
      * Получить уникальный регистрационный номер активной игры.
      */
-    UUID getUniqueId() throws RemoteException;
+    UUID getUniqueId();
 
     /**
      * Получить текущую загруженную карту на данный сервер.
      */
-    String getMap() throws RemoteException;
+    String getMap();
 
     /**
      * Получить текущее состояние игры
      */
-    GameState getState() throws RemoteException;
+    GameState getState();
 
     /**
      * Получить родительскую игру.

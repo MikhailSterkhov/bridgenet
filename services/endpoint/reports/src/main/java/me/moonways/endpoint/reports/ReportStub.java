@@ -4,15 +4,14 @@ import lombok.Getter;
 import lombok.ToString;
 import me.moonways.bridgenet.model.service.reports.Report;
 import me.moonways.bridgenet.model.service.reports.ReportReason;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteObject;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointServiceObject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.rmi.RemoteException;
 
 @ToString
 @Getter
-public class ReportStub extends EndpointRemoteObject implements Report {
+public class ReportStub extends EndpointServiceObject implements Report {
 
     private static final long serialVersionUID = -3931465978117678586L;
 
@@ -32,7 +31,7 @@ public class ReportStub extends EndpointRemoteObject implements Report {
                       @NotNull String intruderName,
                       @Nullable String comment,
                       @NotNull String serverName,
-                      long createdTimeMillis) throws RemoteException {
+                      long createdTimeMillis) {
 
         this.reason = reason;
         this.whoReportedName = whoReportedName;

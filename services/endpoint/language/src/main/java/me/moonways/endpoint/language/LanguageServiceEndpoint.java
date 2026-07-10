@@ -11,18 +11,15 @@ import me.moonways.bridgenet.assembly.ini.type.IniProperty;
 import me.moonways.bridgenet.model.event.PlayerLanguageUpdateEvent;
 import me.moonways.bridgenet.model.service.language.*;
 import me.moonways.bridgenet.model.service.players.PlayersServiceModel;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteContext;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteObject;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointRemoteContext;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointServiceObject;
 import net.kyori.adventure.text.Component;
 
-import java.rmi.RemoteException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 @Log4j2
-public final class LanguageServiceEndpoint extends EndpointRemoteObject implements LanguageServiceModel {
-    private static final long serialVersionUID = -7274752404023780386L;
-
+public final class LanguageServiceEndpoint extends EndpointServiceObject implements LanguageServiceModel {
     private static final Language DEFAULT_LANG = LanguageTypes.ENGLISH;
 
     private static final String LANGUAGES_CONFIGS_FORMAT = "lang/%s.ini";
@@ -48,10 +45,6 @@ public final class LanguageServiceEndpoint extends EndpointRemoteObject implemen
     private ResourcesAssembly assembly;
     @Inject
     private PlayersServiceModel playersServiceModel;
-
-    public LanguageServiceEndpoint() throws RemoteException {
-        super();
-    }
 
     @Override
     protected void construct(EndpointRemoteContext context) {
@@ -119,44 +112,44 @@ public final class LanguageServiceEndpoint extends EndpointRemoteObject implemen
     }
 
     @Override
-    public Optional<Language> getLang(String name) throws RemoteException {
+    public Optional<Language> getLang(String name) {
         return findLanguage(Language.fromName(name))
                 .map(RegisteredLanguage::getLanguage);
     }
 
     @Override
-    public Optional<Language> getLang(Locale locale) throws RemoteException {
+    public Optional<Language> getLang(Locale locale) {
         return findLanguage(Language.fromLocale(locale))
                 .map(RegisteredLanguage::getLanguage);
     }
 
     @Override
-    public Component message(Language language, String key) throws RemoteException {
+    public Component message(Language language, String key) {
         return Component.text(messageText(language, key));
     }
 
     @Override
-    public Component message(Language language, Message message) throws RemoteException {
+    public Component message(Language language, Message message) {
         return Component.text(messageText(language, message));
     }
 
     @Override
-    public String messageText(Language language, String key) throws RemoteException {
+    public String messageText(Language language, String key) {
         return findTranslatedMessage(language, Message.keyed(key)).orElse(null);
     }
 
     @Override
-    public String messageText(Language language, Message message) throws RemoteException {
+    public String messageText(Language language, Message message) {
         return findTranslatedMessage(language, message).orElse(null);
     }
 
     @Override
-    public Language getDefault() throws RemoteException {
+    public Language getDefault() {
         return DEFAULT_LANG;
     }
 
     @Override
-    public Language getPlayerLang(UUID playerId) throws RemoteException {
+    public Language getPlayerLang(UUID playerId) {
         playersLanguagesCache.cleanUp();
 
         Language cached = playersLanguagesCache.getIfPresent(playerId);
@@ -172,12 +165,12 @@ public final class LanguageServiceEndpoint extends EndpointRemoteObject implemen
     }
 
     @Override
-    public Language getPlayerLang(String playerName) throws RemoteException {
+    public Language getPlayerLang(String playerName) {
         return getPlayerLang(playersServiceModel.store().idByName(playerName));
     }
 
     @Override
-    public Optional<PlayerLanguageUpdateEvent> setPlayerLang(UUID playerId, Language language) throws RemoteException {
+    public Optional<PlayerLanguageUpdateEvent> setPlayerLang(UUID playerId, Language language) {
         Language previous = getPlayerLang(playerId);
 
         if (previous.equals(language)) {
@@ -198,7 +191,7 @@ public final class LanguageServiceEndpoint extends EndpointRemoteObject implemen
     }
 
     @Override
-    public Optional<PlayerLanguageUpdateEvent> setPlayerLang(String playerName, Language language) throws RemoteException {
+    public Optional<PlayerLanguageUpdateEvent> setPlayerLang(String playerName, Language language) {
         return setPlayerLang(playersServiceModel.store().idByName(playerName), language);
     }
 }

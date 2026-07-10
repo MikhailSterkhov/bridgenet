@@ -11,15 +11,12 @@ import me.moonways.bridgenet.mtp.config.NetworkJsonConfiguration;
 import me.moonways.bridgenet.mtp.connection.BridgenetNetworkConnectionFactory;
 import me.moonways.bridgenet.mtp.connection.NetworkBootstrapFactory;
 import me.moonways.bridgenet.mtp.inbound.InboundChannelOptionsHandler;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteContext;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteObject;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointRemoteContext;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointServiceObject;
 import me.moonways.endpoint.bus.handler.GetCommandsMessageHandler;
 
-import java.rmi.RemoteException;
 
-public final class BusServiceEndpoint extends EndpointRemoteObject implements BusServiceModel {
-
-    private static final long serialVersionUID = 3915937249408474506L;
+public final class BusServiceEndpoint extends EndpointServiceObject implements BusServiceModel {
 
     @Inject
     private BridgenetNetworkConnectionFactory networkConnectionFactory;
@@ -27,10 +24,6 @@ public final class BusServiceEndpoint extends EndpointRemoteObject implements Bu
     private BridgenetNetworkController networkController;
     @Inject
     private InboundChannelOptionsHandler inboundChannelOptionsHandler;
-
-    public BusServiceEndpoint() throws RemoteException {
-        super();
-    }
 
     @Override
     protected void construct(EndpointRemoteContext context) {

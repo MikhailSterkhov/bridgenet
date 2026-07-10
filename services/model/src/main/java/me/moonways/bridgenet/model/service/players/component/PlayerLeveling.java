@@ -1,13 +1,11 @@
 package me.moonways.bridgenet.model.service.players.component;
 
-import java.rmi.Remote;
-import java.rmi.RemoteException;
 
 /**
  * Представляет собой удаленный интерфейс для управления уровнем и опытом игрока в сетевой игре.
  * Этот интерфейс определяет методы для вычисления уровня игрока, общего опыта, опыта до следующего уровня и т. д.
  */
-public interface PlayerLeveling extends Remote {
+public interface PlayerLeveling {
 
     /**
      * Вычислить уровень игрока на основе общего опыта.
@@ -15,7 +13,7 @@ public interface PlayerLeveling extends Remote {
      * @param totalExperience Общий опыт игрока.
      * @return Уровень игрока.
      */
-    int toLevel(int totalExperience) throws RemoteException;
+    int toLevel(int totalExperience);
 
     /**
      * Вычислить общий опыт игрока на основе его уровня.
@@ -23,7 +21,7 @@ public interface PlayerLeveling extends Remote {
      * @param level - Уровень игрока.
      * @return - Общий опыт игрока.
      */
-    int totalExperience(int level) throws RemoteException;
+    int totalExperience(int level);
 
     /**
      * Вычислить количество опыта, необходимого для перехода на следующий уровень.
@@ -31,7 +29,7 @@ public interface PlayerLeveling extends Remote {
      * @param level - Уровень игрока.
      * @return - Количество опыта до следующего уровня.
      */
-    int experienceToNextLevel(int level) throws RemoteException;
+    int experienceToNextLevel(int level);
 
     /**
      * Вычислить процент опыта, который игрок получил для достижения следующего уровня.
@@ -39,7 +37,7 @@ public interface PlayerLeveling extends Remote {
      * @param totalExperience - Общий опыт игрока.
      * @return - Процент опыта до следующего уровня.
      */
-    int experiencePercentToNextLevel(int totalExperience) throws RemoteException;
+    int experiencePercentToNextLevel(int totalExperience);
 
     /**
      * Вычислить общий опыт игрока на основе его уровня и опыта.
@@ -48,5 +46,5 @@ public interface PlayerLeveling extends Remote {
      * @param experience - Опыт игрока.
      * @return - Общий опыт игрока.
      */
-    int subtotal(int level, int experience) throws RemoteException;
+    int subtotal(int level, int experience);
 }

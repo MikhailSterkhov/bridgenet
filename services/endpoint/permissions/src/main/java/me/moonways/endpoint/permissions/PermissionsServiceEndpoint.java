@@ -3,22 +3,15 @@ package me.moonways.endpoint.permissions;
 import me.moonways.bridgenet.model.service.permissions.PermissionsServiceModel;
 import me.moonways.bridgenet.model.service.permissions.group.GroupsManager;
 import me.moonways.bridgenet.model.service.permissions.permission.PermissionsManager;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteContext;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteObject;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointRemoteContext;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointServiceObject;
 import me.moonways.endpoint.permissions.manager.GroupsManagerStub;
 import me.moonways.endpoint.permissions.manager.PermissionsManagerStub;
 
-import java.rmi.RemoteException;
 
-public final class PermissionsServiceEndpoint extends EndpointRemoteObject implements PermissionsServiceModel {
-    private static final long serialVersionUID = -5975978081916259048L;
-
+public final class PermissionsServiceEndpoint extends EndpointServiceObject implements PermissionsServiceModel {
     private final GroupsManager groupsManager = new GroupsManagerStub();
     private final PermissionsManager permissionsManager = new PermissionsManagerStub();
-
-    public PermissionsServiceEndpoint() throws RemoteException {
-        super();
-    }
 
     @Override
     protected void construct(EndpointRemoteContext context) {
@@ -27,12 +20,12 @@ public final class PermissionsServiceEndpoint extends EndpointRemoteObject imple
     }
 
     @Override
-    public GroupsManager getGroups() throws RemoteException {
+    public GroupsManager getGroups() {
         return groupsManager;
     }
 
     @Override
-    public PermissionsManager getPermissions() throws RemoteException {
+    public PermissionsManager getPermissions() {
         return permissionsManager;
     }
 }

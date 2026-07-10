@@ -9,7 +9,6 @@ import me.moonways.bridgenet.jdbc.entity.persistence.Entity;
 import me.moonways.bridgenet.jdbc.entity.persistence.EntityColumn;
 import me.moonways.bridgenet.model.service.settings.Setting;
 
-import java.rmi.RemoteException;
 import java.util.UUID;
 
 @Builder
@@ -18,7 +17,7 @@ import java.util.UUID;
 @Entity(name = "players_settings")
 public class EntitySetting {
 
-    public static EntitySetting fromSetting(UUID playerID, Setting<?> setting) throws RemoteException {
+    public static EntitySetting fromSetting(UUID playerID, Setting<?> setting) {
         return EntitySetting.builder()
                 .playerId(playerID)
                 .settingId(setting.id().getId())

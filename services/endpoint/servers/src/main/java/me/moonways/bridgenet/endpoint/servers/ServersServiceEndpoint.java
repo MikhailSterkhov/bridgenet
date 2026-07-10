@@ -8,24 +8,18 @@ import me.moonways.bridgenet.endpoint.servers.players.PlayersOnServersConnection
 import me.moonways.bridgenet.model.service.servers.EntityServer;
 import me.moonways.bridgenet.model.service.servers.ServerFlag;
 import me.moonways.bridgenet.model.service.servers.ServersServiceModel;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteContext;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteObject;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointRemoteContext;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointServiceObject;
 import org.jetbrains.annotations.NotNull;
 
-import java.rmi.RemoteException;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-public class ServersServiceEndpoint extends EndpointRemoteObject implements ServersServiceModel {
+public class ServersServiceEndpoint extends EndpointServiceObject implements ServersServiceModel {
 
-    private static final long serialVersionUID = -1037167251538756291L;
     private final ServersContainer serversContainer = new ServersContainer();
-
-    public ServersServiceEndpoint() throws RemoteException {
-        super();
-    }
 
     @Override
     protected void construct(EndpointRemoteContext context) {
@@ -37,44 +31,44 @@ public class ServersServiceEndpoint extends EndpointRemoteObject implements Serv
     }
 
     @Override
-    public List<EntityServer> getTotalServers() throws RemoteException {
+    public List<EntityServer> getTotalServers() {
         return serversContainer.getConnectedServers().collect(Collectors.toList());
     }
 
     @Override
-    public List<EntityServer> getDefaultServers() throws RemoteException {
+    public List<EntityServer> getDefaultServers() {
         return serversContainer.getConnectedServersWithFlag(ServerFlag.DEFAULT_SERVER)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public List<EntityServer> getFallbackServers() throws RemoteException {
+    public List<EntityServer> getFallbackServers() {
         return serversContainer.getConnectedServersWithFlag(ServerFlag.FALLBACK_SERVER)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public Optional<EntityServer> getServerExact(@NotNull String serverName) throws RemoteException {
+    public Optional<EntityServer> getServerExact(@NotNull String serverName) {
         return Optional.ofNullable(serversContainer.getConnectedServerExact(serverName));
     }
 
     @Override
-    public Optional<EntityServer> getServerExact(@NotNull UUID uuid) throws RemoteException {
+    public Optional<EntityServer> getServerExact(@NotNull UUID uuid) {
         return Optional.ofNullable(serversContainer.getConnectedServerExact(uuid));
     }
 
     @Override
-    public Optional<EntityServer> getServer(@NotNull String serverName) throws RemoteException {
+    public Optional<EntityServer> getServer(@NotNull String serverName) {
         return Optional.ofNullable(serversContainer.getConnectedServer(serverName));
     }
 
     @Override
-    public boolean hasServer(@NotNull UUID uuid) throws RemoteException {
+    public boolean hasServer(@NotNull UUID uuid) {
         return getServerExact(uuid).isPresent();
     }
 
     @Override
-    public boolean hasServer(@NotNull String serverName) throws RemoteException {
+    public boolean hasServer(@NotNull String serverName) {
         return getServerExact(serverName).isPresent();
     }
 }

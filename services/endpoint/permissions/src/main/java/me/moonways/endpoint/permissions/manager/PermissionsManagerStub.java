@@ -14,7 +14,6 @@ import me.moonways.bridgenet.model.service.permissions.permission.PermissionsMan
 import me.moonways.bridgenet.model.service.players.PlayersServiceModel;
 import me.moonways.endpoint.permissions.entity.EntityPermission;
 
-import java.rmi.RemoteException;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Optional;
@@ -76,12 +75,12 @@ public final class PermissionsManagerStub implements PermissionsManager {
     }
 
     @Override
-    public Set<Permission> getActivePermissions(String playerName) throws RemoteException {
+    public Set<Permission> getActivePermissions(String playerName) {
         return getActivePermissions(playersServiceModel.store().idByName(playerName));
     }
 
     @Override
-    public Set<Permission> getActivePermissions(UUID playerId) throws RemoteException {
+    public Set<Permission> getActivePermissions(UUID playerId) {
         playersPermissionsCache.cleanUp();
         Set<Permission> cachedPermissionsSet = playersPermissionsCache.getIfPresent(playerId);
 
@@ -94,12 +93,12 @@ public final class PermissionsManagerStub implements PermissionsManager {
     }
 
     @Override
-    public Optional<PlayerPermissionAddEvent> addPermission(String playerName, Permission permission) throws RemoteException {
+    public Optional<PlayerPermissionAddEvent> addPermission(String playerName, Permission permission) {
         return addPermission(playersServiceModel.store().idByName(playerName), permission);
     }
 
     @Override
-    public Optional<PlayerPermissionAddEvent> addPermission(UUID playerId, Permission permission) throws RemoteException {
+    public Optional<PlayerPermissionAddEvent> addPermission(UUID playerId, Permission permission) {
         if (hasPermission(playerId, permission)) {
             return Optional.empty();
         }
@@ -120,22 +119,22 @@ public final class PermissionsManagerStub implements PermissionsManager {
     }
 
     @Override
-    public Optional<PlayerPermissionAddEvent> addPermission(String playerName, String permissionName) throws RemoteException {
+    public Optional<PlayerPermissionAddEvent> addPermission(String playerName, String permissionName) {
         return addPermission(playerName, Permission.named(permissionName));
     }
 
     @Override
-    public Optional<PlayerPermissionAddEvent> addPermission(UUID playerId, String permissionName) throws RemoteException {
+    public Optional<PlayerPermissionAddEvent> addPermission(UUID playerId, String permissionName) {
         return addPermission(playerId, Permission.named(permissionName));
     }
 
     @Override
-    public Optional<PlayerPermissionRemoveEvent> removePermission(String playerName, Permission permission) throws RemoteException {
+    public Optional<PlayerPermissionRemoveEvent> removePermission(String playerName, Permission permission) {
         return removePermission(playersServiceModel.store().idByName(playerName), permission);
     }
 
     @Override
-    public Optional<PlayerPermissionRemoveEvent> removePermission(UUID playerId, Permission permission) throws RemoteException {
+    public Optional<PlayerPermissionRemoveEvent> removePermission(UUID playerId, Permission permission) {
         if (!hasPermission(playerId, permission)) {
             return Optional.empty();
         }
@@ -156,43 +155,43 @@ public final class PermissionsManagerStub implements PermissionsManager {
     }
 
     @Override
-    public Optional<PlayerPermissionRemoveEvent> removePermission(String playerName, String permissionName) throws RemoteException {
+    public Optional<PlayerPermissionRemoveEvent> removePermission(String playerName, String permissionName) {
         return removePermission(playerName, Permission.named(permissionName));
     }
 
     @Override
-    public Optional<PlayerPermissionRemoveEvent> removePermission(UUID playerId, String permissionName) throws RemoteException {
+    public Optional<PlayerPermissionRemoveEvent> removePermission(UUID playerId, String permissionName) {
         return removePermission(playerId, Permission.named(permissionName));
     }
 
     @Override
-    public void clearPermissions(String playerName) throws RemoteException {
+    public void clearPermissions(String playerName) {
         clearPermissions(playersServiceModel.store().idByName(playerName));
     }
 
     @Override
-    public void clearPermissions(UUID playerId) throws RemoteException {
+    public void clearPermissions(UUID playerId) {
         playersPermissionsCache.invalidate(playerId);
         deleteAllPermissions(playerId);
     }
 
     @Override
-    public boolean hasPermission(String playerName, Permission permission) throws RemoteException {
+    public boolean hasPermission(String playerName, Permission permission) {
         return getActivePermissions(playerName).contains(permission);
     }
 
     @Override
-    public boolean hasPermission(UUID playerId, Permission permission) throws RemoteException {
+    public boolean hasPermission(UUID playerId, Permission permission) {
         return getActivePermissions(playerId).contains(permission);
     }
 
     @Override
-    public boolean hasPermission(String playerName, String permissionName) throws RemoteException {
+    public boolean hasPermission(String playerName, String permissionName) {
         return hasPermission(playerName, Permission.named(permissionName));
     }
 
     @Override
-    public boolean hasPermission(UUID playerId, String permissionName) throws RemoteException {
+    public boolean hasPermission(UUID playerId, String permissionName) {
         return hasPermission(playerId, Permission.named(permissionName));
     }
 }

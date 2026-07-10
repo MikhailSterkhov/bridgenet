@@ -1,10 +1,8 @@
 package me.moonways.bridgenet.model.service.auth;
 
-import java.rmi.Remote;
-import java.rmi.RemoteException;
 import java.util.concurrent.CompletableFuture;
 
-public interface Account2FA extends Remote {
+public interface Account2FA {
 
     /**
      * Запросить подтверждение о входе пользователя
@@ -13,7 +11,7 @@ public interface Account2FA extends Remote {
      *
      * @param security - система дополнительной защиты, к которой обращаемся за подтверждением.
      */
-    CompletableFuture<SecurityConfirmResult> requestConfirmation(Security2FA security) throws RemoteException;
+    CompletableFuture<SecurityConfirmResult> requestConfirmation(Security2FA security);
 
     /**
      * Запросить подтверждение о входе пользователя
@@ -24,5 +22,5 @@ public interface Account2FA extends Remote {
      * подключенной системой дополнительной защиты, или специально
      * выбранной пользователем в настройках аккаунта.
      */
-    CompletableFuture<SecurityConfirmResult> requestConfirmationMaintained() throws RemoteException;
+    CompletableFuture<SecurityConfirmResult> requestConfirmationMaintained();
 }

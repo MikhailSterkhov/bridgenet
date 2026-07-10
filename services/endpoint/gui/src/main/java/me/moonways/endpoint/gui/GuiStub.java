@@ -14,7 +14,6 @@ import me.moonways.bridgenet.model.service.gui.click.ItemClickListener;
 import me.moonways.bridgenet.model.service.gui.item.ItemStack;
 import me.moonways.bridgenet.model.service.players.Player;
 
-import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -94,37 +93,37 @@ public class GuiStub implements Gui {
     }
 
     @Override
-    public ItemStack getItem(GuiSlot slot) throws RemoteException {
+    public ItemStack getItem(GuiSlot slot) {
         return contentMap.get(slot);
     }
 
     @Override
-    public void setItem(GuiSlot slot, ItemStack itemStack, ItemClickListener clickListener) throws RemoteException {
+    public void setItem(GuiSlot slot, ItemStack itemStack, ItemClickListener clickListener) {
         addContent(slot, itemStack, clickListener);
     }
 
     @Override
-    public void setItem(GuiSlot slot, ItemStack itemStack) throws RemoteException {
+    public void setItem(GuiSlot slot, ItemStack itemStack) {
         addContent(slot, itemStack, null);
     }
 
     @Override
-    public void removeItem(GuiSlot slot) throws RemoteException {
+    public void removeItem(GuiSlot slot) {
         removeContent(slot);
     }
 
     @Override
-    public void addGlobalListener(ItemClickListener listener) throws RemoteException {
+    public void addGlobalListener(ItemClickListener listener) {
         globalListeners.add(listener);
     }
 
     @Override
-    public void addGlobalListener(GuiSlot slot, ItemClickListener listener) throws RemoteException {
+    public void addGlobalListener(GuiSlot slot, ItemClickListener listener) {
         addClickContent(slot, listener);
     }
 
     @Override
-    public void open(Player player) throws RemoteException {
+    public void open(Player player) {
         network.openGui(player, this);
     }
 }

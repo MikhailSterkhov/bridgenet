@@ -14,7 +14,6 @@ import me.moonways.bridgenet.model.service.players.PlayersServiceModel;
 import me.moonways.endpoint.permissions.PermissionsEndpointException;
 import me.moonways.endpoint.permissions.entity.EntityGroup;
 
-import java.rmi.RemoteException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -63,37 +62,37 @@ public final class GroupsManagerStub implements GroupsManager {
     }
 
     @Override
-    public List<PermissionGroup> getTotalGroups() throws RemoteException {
+    public List<PermissionGroup> getTotalGroups() {
         return Collections.unmodifiableList(GroupTypes.ORDERED_GROUPS_LIST);
     }
 
     @Override
-    public List<PermissionGroup> getDonateGroups() throws RemoteException {
+    public List<PermissionGroup> getDonateGroups() {
         return filteredGroupsList(PermissionGroup::isDonate);
     }
 
     @Override
-    public List<PermissionGroup> getTemporalGroups() throws RemoteException {
+    public List<PermissionGroup> getTemporalGroups() {
         return filteredGroupsList(permissionGroup -> permissionGroup.getTemporalState().isEnabled());
     }
 
     @Override
-    public List<PermissionGroup> getCommercialGroups() throws RemoteException {
+    public List<PermissionGroup> getCommercialGroups() {
         return filteredGroupsList(PermissionGroup::isCommercialPersonal);
     }
 
     @Override
-    public List<PermissionGroup> getPersonalGroups() throws RemoteException {
+    public List<PermissionGroup> getPersonalGroups() {
         return filteredGroupsList(PermissionGroup::isPersonal);
     }
 
     @Override
-    public List<PermissionGroup> getTechPersonalGroups() throws RemoteException {
+    public List<PermissionGroup> getTechPersonalGroups() {
         return filteredGroupsList(PermissionGroup::isTechPersonal);
     }
 
     @Override
-    public List<PermissionGroup> getOwnerGroups() throws RemoteException {
+    public List<PermissionGroup> getOwnerGroups() {
         return filteredGroupsList(PermissionGroup::isOwner);
     }
 
@@ -105,19 +104,19 @@ public final class GroupsManagerStub implements GroupsManager {
     }
 
     @Override
-    public Optional<PermissionGroup> getGroup(String groupName) throws RemoteException {
+    public Optional<PermissionGroup> getGroup(String groupName) {
         return filteredGroupsList(group -> group.getName().equalsIgnoreCase(groupName))
                 .stream()
                 .findFirst();
     }
 
     @Override
-    public Optional<PermissionGroup> getPlayerGroup(String playerName) throws RemoteException {
+    public Optional<PermissionGroup> getPlayerGroup(String playerName) {
         return getPlayerGroup(playersServiceModel.store().idByName(playerName));
     }
 
     @Override
-    public Optional<PermissionGroup> getPlayerGroup(UUID playerId) throws RemoteException {
+    public Optional<PermissionGroup> getPlayerGroup(UUID playerId) {
         playersGroupsCache.cleanUp();
 
         PermissionGroup cached = playersGroupsCache.getIfPresent(playerId);
@@ -131,13 +130,13 @@ public final class GroupsManagerStub implements GroupsManager {
     }
 
     @Override
-    public Optional<PlayerGroupUpdateEvent> setPlayerGroup(String playerName, PermissionGroup group) throws RemoteException {
+    public Optional<PlayerGroupUpdateEvent> setPlayerGroup(String playerName, PermissionGroup group) {
         UUID playerId = playersServiceModel.store().idByName(playerName);
         return setPlayerGroup(playerId, group);
     }
 
     @Override
-    public Optional<PlayerGroupUpdateEvent> setPlayerGroup(UUID playerId, PermissionGroup group) throws RemoteException {
+    public Optional<PlayerGroupUpdateEvent> setPlayerGroup(UUID playerId, PermissionGroup group) {
         PermissionGroup previous = getPlayerGroup(playerId)
                 .orElseGet(this::getDefault);
 
@@ -168,52 +167,52 @@ public final class GroupsManagerStub implements GroupsManager {
     }
 
     @Override
-    public boolean isDefault(String playerName) throws RemoteException {
+    public boolean isDefault(String playerName) {
         return getPlayerGroup(playerName).map(PermissionGroup::isDefault).orElse(false);
     }
 
     @Override
-    public boolean isDefault(UUID playerId) throws RemoteException {
+    public boolean isDefault(UUID playerId) {
         return getPlayerGroup(playerId).map(PermissionGroup::isDefault).orElse(false);
     }
 
     @Override
-    public boolean isDonated(String playerName) throws RemoteException {
+    public boolean isDonated(String playerName) {
         return getPlayerGroup(playerName).map(PermissionGroup::isDonate).orElse(false);
     }
 
     @Override
-    public boolean isDonated(UUID playerId) throws RemoteException {
+    public boolean isDonated(UUID playerId) {
         return getPlayerGroup(playerId).map(PermissionGroup::isDonate).orElse(false);
     }
 
     @Override
-    public boolean isPersonal(String playerName) throws RemoteException {
+    public boolean isPersonal(String playerName) {
         return getPlayerGroup(playerName).map(PermissionGroup::isPersonal).orElse(false);
     }
 
     @Override
-    public boolean isPersonal(UUID playerId) throws RemoteException {
+    public boolean isPersonal(UUID playerId) {
         return getPlayerGroup(playerId).map(PermissionGroup::isPersonal).orElse(false);
     }
 
     @Override
-    public boolean isTechPersonal(String playerName) throws RemoteException {
+    public boolean isTechPersonal(String playerName) {
         return getPlayerGroup(playerName).map(PermissionGroup::isTechPersonal).orElse(false);
     }
 
     @Override
-    public boolean isTechPersonal(UUID playerId) throws RemoteException {
+    public boolean isTechPersonal(UUID playerId) {
         return getPlayerGroup(playerId).map(PermissionGroup::isTechPersonal).orElse(false);
     }
 
     @Override
-    public boolean isOwner(String playerName) throws RemoteException {
+    public boolean isOwner(String playerName) {
         return getPlayerGroup(playerName).map(PermissionGroup::isOwner).orElse(false);
     }
 
     @Override
-    public boolean isOwner(UUID playerId) throws RemoteException {
+    public boolean isOwner(UUID playerId) {
         return getPlayerGroup(playerId).map(PermissionGroup::isOwner).orElse(false);
     }
 }

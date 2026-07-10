@@ -6,7 +6,7 @@ import me.moonways.bridgenet.api.inject.Inject;
 import me.moonways.bridgenet.api.inject.bean.service.BeansService;
 import me.moonways.bridgenet.api.inject.bean.service.BeansStore;
 import me.moonways.bridgenet.bootstrap.AppBootstrap;
-import me.moonways.bridgenet.rmi.service.RemoteServicesManagement;
+import me.moonways.bridgenet.services.loader.EndpointsService;
 
 import java.util.ArrayList;
 
@@ -21,7 +21,7 @@ public final class RestartService {
     @Inject
     private BeansService beansService;
     @Inject
-    private RemoteServicesManagement remoteServicesManagement;
+    private EndpointsService remoteServicesManagement;
 
     public void doRestart() {
         log.info("§6Restarting an application...");

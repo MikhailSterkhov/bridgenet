@@ -16,18 +16,15 @@ import me.moonways.bridgenet.model.service.gui.item.Items;
 import me.moonways.bridgenet.model.service.language.MessageTypes;
 import me.moonways.bridgenet.model.service.players.Player;
 import me.moonways.bridgenet.model.service.players.PlayersServiceModel;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteContext;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteObject;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointRemoteContext;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointServiceObject;
 
-import java.rmi.RemoteException;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @Log4j2
-public final class GuiServiceEndpoint extends EndpointRemoteObject implements GuiServiceModel {
-
-    private static final long serialVersionUID = -698118002154484440L;
+public final class GuiServiceEndpoint extends EndpointServiceObject implements GuiServiceModel {
 
     private final Cache<UUID, GuiStub> guisCache =
             CacheBuilder.newBuilder()
@@ -44,17 +41,13 @@ public final class GuiServiceEndpoint extends EndpointRemoteObject implements Gu
     @Getter
     private final GuiNetworkManager guiNetworkManager = new GuiNetworkManager();
 
-    public GuiServiceEndpoint() throws RemoteException {
-        super();
-    }
-
     @Override
     protected void construct(EndpointRemoteContext context) {
         context.registerMessageListener(new InboundGuiClickListener(this));
     }
 
     @Override
-    public Gui createGui(GuiType type) throws RemoteException {
+    public Gui createGui(GuiType type) {
         return createGui(
                 GuiDescription.builder()
                         .title("")
@@ -65,7 +58,7 @@ public final class GuiServiceEndpoint extends EndpointRemoteObject implements Gu
     }
 
     @Override
-    public Gui createGui(GuiDescription description) throws RemoteException {
+    public Gui createGui(GuiDescription description) {
         GuiStub guiStub = new GuiStub(UUID.randomUUID(), description, guiNetworkManager);
 
         beansService.inject(guiStub);
@@ -81,7 +74,7 @@ public final class GuiServiceEndpoint extends EndpointRemoteObject implements Gu
     }
 
     @Override
-    public void fireClickAction(ClickAction clickAction) throws RemoteException {
+    public void fireClickAction(ClickAction clickAction) {
         Optional<Player> playerOptional = playersServiceModel.store().get(clickAction.getPlayerId());
         if (!playerOptional.isPresent()) {
             return;
@@ -111,7 +104,7 @@ public final class GuiServiceEndpoint extends EndpointRemoteObject implements Gu
     }
 
     @Override
-    public void fireCloseGui(Player player) throws RemoteException {
+    public void fireCloseGui(Player player) {
         guiNetworkManager.closeOpenedGui(player);
     }
 }

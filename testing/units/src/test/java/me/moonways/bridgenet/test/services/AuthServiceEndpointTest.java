@@ -7,19 +7,18 @@ import me.moonways.bridgenet.model.service.auth.AuthenticationSession;
 import me.moonways.bridgenet.model.service.auth.AuthorizationResult;
 import me.moonways.bridgenet.test.data.TestConst;
 import me.moonways.bridgenet.test.engine.ModernTestEngineRunner;
-import me.moonways.bridgenet.test.engine.component.module.impl.RmiServicesModule;
+import me.moonways.bridgenet.test.engine.component.module.impl.ServicesModule;
 import me.moonways.bridgenet.test.engine.persistance.TestModules;
 import me.moonways.bridgenet.test.engine.persistance.TestOrdered;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.rmi.RemoteException;
 import java.util.Optional;
 
 import static org.junit.Assert.*;
 
 @RunWith(ModernTestEngineRunner.class)
-@TestModules(RmiServicesModule.class)
+@TestModules(ServicesModule.class)
 public class AuthServiceEndpointTest {
 
     @Inject
@@ -27,7 +26,7 @@ public class AuthServiceEndpointTest {
 
     @Test
     @TestOrdered(0)
-    public void test_accountRegistration() throws RemoteException {
+    public void test_accountRegistration() {
         assertFalse(serviceModel.findAccountById(TestConst.Player.ID).isPresent());
 
         AuthorizationResult resultSuccess = serviceModel.tryRegistration(TestConst.Player.ID, TestConst.Auth.ACTUAL_PASSWORD);
@@ -40,7 +39,7 @@ public class AuthServiceEndpointTest {
 
     @Test
     @TestOrdered(1)
-    public void test_accountSession() throws RemoteException {
+    public void test_accountSession() {
         Optional<Account> accountById = serviceModel.findAccountById(TestConst.Player.ID);
         assertTrue(accountById.isPresent());
 
@@ -57,7 +56,7 @@ public class AuthServiceEndpointTest {
 
     @Test
     @TestOrdered(2)
-    public void test_accountLogout() throws RemoteException {
+    public void test_accountLogout() {
         assertTrue(serviceModel.findAccountById(TestConst.Player.ID).isPresent());
 
         AuthorizationResult resultSuccess = serviceModel.tryLogOut(TestConst.Player.ID);
@@ -69,7 +68,7 @@ public class AuthServiceEndpointTest {
 
     @Test
     @TestOrdered(3)
-    public void test_accountLogging() throws RemoteException {
+    public void test_accountLogging() {
         assertTrue(serviceModel.findAccountById(TestConst.Player.ID).isPresent());
 
         AuthorizationResult resultSuccess = serviceModel.tryLogin(TestConst.Player.ID, TestConst.Auth.ACTUAL_PASSWORD);
@@ -81,7 +80,7 @@ public class AuthServiceEndpointTest {
 
     @Test
     @TestOrdered(4)
-    public void test_accountPasswordChange() throws RemoteException {
+    public void test_accountPasswordChange() {
         assertTrue(serviceModel.findAccountById(TestConst.Player.ID).isPresent());
 
         AuthorizationResult resultUncorrectedPassword = serviceModel.tryPasswordChange(TestConst.Player.ID, TestConst.Auth.NEW_PASSWORD, TestConst.Auth.ACTUAL_PASSWORD);
@@ -95,7 +94,7 @@ public class AuthServiceEndpointTest {
 
     @Test
     @TestOrdered(5)
-    public void test_accountDelete() throws RemoteException {
+    public void test_accountDelete() {
         assertTrue(serviceModel.findAccountById(TestConst.Player.ID).isPresent());
 
         AuthorizationResult resultSuccess = serviceModel.tryAccountDelete(TestConst.Player.ID);

@@ -9,7 +9,6 @@ import me.moonways.bridgenet.api.minecraft.ChatColor;
 import me.moonways.bridgenet.model.service.servers.EntityServer;
 import me.moonways.bridgenet.model.service.servers.ServersServiceModel;
 
-import java.rmi.RemoteException;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,7 +32,7 @@ public class ServersInfoCommand {
     @ProducerExecutor("info")
     @ProducerUsageDescription("info <server-name>")
     @ProducerDescription("Get a server information by name")
-    public void info(CommandSession session) throws RemoteException {
+    public void info(CommandSession session) {
         Optional<String> serverName = session.arguments().get(0);
 
         if (!serverName.isPresent()) {
@@ -54,7 +53,7 @@ public class ServersInfoCommand {
 
     @ProducerExecutor("list")
     @ProducerDescription("Get a total servers list")
-    public void list(CommandSession session) throws RemoteException {
+    public void list(CommandSession session) {
         List<EntityServer> totalServers = servers.getTotalServers();
         if (totalServers.isEmpty()) {
             session.getSender().sendMessage("Servers not found");
@@ -65,7 +64,7 @@ public class ServersInfoCommand {
         }
     }
 
-    private void sendServerInfo(EntityServer entityServer, EntityCommandSender sender) throws RemoteException {
+    private void sendServerInfo(EntityServer entityServer, EntityCommandSender sender) {
         sender.sendMessage("{info=" + entityServer.getServerInfo() + ", online=" + entityServer.getTotalOnline() + "}");
     }
 }

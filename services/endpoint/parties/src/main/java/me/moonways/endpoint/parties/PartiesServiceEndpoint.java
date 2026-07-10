@@ -8,28 +8,21 @@ import me.moonways.bridgenet.model.event.PartyCreateEvent;
 import me.moonways.bridgenet.model.event.PartyRegisterEvent;
 import me.moonways.bridgenet.model.event.PartyUnregisterEvent;
 import me.moonways.bridgenet.model.service.parties.*;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteObject;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointServiceObject;
 import org.jetbrains.annotations.NotNull;
 
-import java.rmi.RemoteException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
 @Getter
-public final class PartiesServiceEndpoint extends EndpointRemoteObject implements PartiesServiceModel {
-    private static final long serialVersionUID = 4320252037235387938L;
-
+public final class PartiesServiceEndpoint extends EndpointServiceObject implements PartiesServiceModel {
     private final Set<Party> registeredParties = Collections.synchronizedSet(new HashSet<>());
 
     @Inject
     private BeansService beansService;
     @Inject
     private EventService eventService;
-
-    public PartiesServiceEndpoint() throws RemoteException {
-        super();
-    }
 
     private void validateNull(Party party) {
         if (party == null) {
@@ -45,13 +38,7 @@ public final class PartiesServiceEndpoint extends EndpointRemoteObject implement
 
     @Override
     public PartyStub createParty(@NotNull String ownerName) {
-        PartyStub party;
-
-        try {
-            party = new PartyStub();
-        } catch (RemoteException e) {
-            throw new RuntimeException(e);
-        }
+        PartyStub party = new PartyStub();
 
         party.setOwner(new PartyOwner(ownerName, party));
         beansService.inject(party.getMembersContainer());
@@ -114,12 +101,8 @@ public final class PartiesServiceEndpoint extends EndpointRemoteObject implement
         validateNull(party);
         validateNull(playerName);
 
-        try {
-            return party.getOwner().getName().equalsIgnoreCase(playerName)
-                    || party.getMembersContainer().hasMemberByName(playerName);
-        } catch (RemoteException e) {
-            throw new RuntimeException(e);
-        }
+        return party.getOwner().getName().equalsIgnoreCase(playerName)
+                || party.getMembersContainer().hasMemberByName(playerName);
     }
 
     @Override

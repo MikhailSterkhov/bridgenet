@@ -7,15 +7,14 @@ import me.moonways.bridgenet.model.event.FriendAddEvent;
 import me.moonways.bridgenet.model.event.FriendRemoveEvent;
 import me.moonways.bridgenet.model.service.friends.FriendsList;
 import me.moonways.bridgenet.model.service.players.PlayersServiceModel;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteObject;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointServiceObject;
 
-import java.rmi.RemoteException;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 @ToString(onlyExplicitlyIncluded = true)
-public class FriendsListStub extends EndpointRemoteObject implements FriendsList {
+public class FriendsListStub extends EndpointServiceObject implements FriendsList {
 
     private static final long serialVersionUID = 8227026529064476222L;
 
@@ -31,7 +30,7 @@ public class FriendsListStub extends EndpointRemoteObject implements FriendsList
     @Inject
     private EventService eventService;
 
-    public FriendsListStub(UUID playerUUID, FriendsDbRepository repository, Set<UUID> uuids) throws RemoteException {
+    public FriendsListStub(UUID playerUUID, FriendsDbRepository repository, Set<UUID> uuids) {
         super();
         this.playerUUID = playerUUID;
         this.repository = repository;
@@ -39,7 +38,7 @@ public class FriendsListStub extends EndpointRemoteObject implements FriendsList
     }
 
     @Override
-    public boolean addFriend(UUID uuid) throws RemoteException {
+    public boolean addFriend(UUID uuid) {
         boolean add = uuids.add(uuid);
         if (add) {
             repository.addFriend(EntityFriend.builder()
@@ -58,12 +57,12 @@ public class FriendsListStub extends EndpointRemoteObject implements FriendsList
     }
 
     @Override
-    public boolean addFriend(String name) throws RemoteException {
+    public boolean addFriend(String name) {
         return addFriend(playersModel.store().idByName(name));
     }
 
     @Override
-    public boolean removeFriend(UUID uuid) throws RemoteException {
+    public boolean removeFriend(UUID uuid) {
         boolean add = uuids.remove(uuid);
         if (add) {
             repository.removeFriend(EntityFriend.builder()
@@ -82,7 +81,7 @@ public class FriendsListStub extends EndpointRemoteObject implements FriendsList
     }
 
     @Override
-    public boolean removeFriend(String name) throws RemoteException {
+    public boolean removeFriend(String name) {
         return removeFriend(playersModel.store().idByName(name));
     }
 
@@ -92,7 +91,7 @@ public class FriendsListStub extends EndpointRemoteObject implements FriendsList
     }
 
     @Override
-    public boolean hasFriend(String name) throws RemoteException {
+    public boolean hasFriend(String name) {
         return hasFriend(playersModel.store().idByName(name));
     }
 
@@ -103,13 +102,7 @@ public class FriendsListStub extends EndpointRemoteObject implements FriendsList
 
     @Override
     public Set<String> getFriendsNames() {
-        return uuids.stream().map(uuid -> {
-                    try {
-                        return playersModel.store().nameById(uuid);
-                    } catch (RemoteException exception) {
-                        throw new RuntimeException(exception);
-                    }
-                })
+        return uuids.stream().map(uuid -> playersModel.store().nameById(uuid))
                 .collect(Collectors.toSet());
     }
 }

@@ -13,7 +13,6 @@ import me.moonways.bridgenet.model.service.servers.ServerInfo;
 import me.moonways.bridgenet.mtp.channel.BridgenetNetworkChannel;
 import me.moonways.endpoint.games.GamesContainer;
 
-import java.rmi.RemoteException;
 
 @RequiredArgsConstructor
 public class GamesServersDownstreamListener {
@@ -24,7 +23,7 @@ public class GamesServersDownstreamListener {
     private BridgenetNetworkChannel channel;
 
     @SubscribeEvent
-    public void handle(ServerDisconnectEvent event) throws RemoteException {
+    public void handle(ServerDisconnectEvent event) {
         EntityServer server = event.getServer();
 
         for (Game game : container.getCollectedGames()) {

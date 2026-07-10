@@ -16,12 +16,6 @@
         <!-- Internal Bridgenet dependencies -->
         <dependency>
             <groupId>me.moonways.bridgenet</groupId>
-            <artifactId>rmi</artifactId>
-            <version>${rmi.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>me.moonways.bridgenet</groupId>
             <artifactId>mtp</artifactId>
             <version>${mtp.version}</version>
             <scope>provided</scope>

@@ -7,28 +7,21 @@ import me.moonways.bridgenet.model.service.reports.Report;
 import me.moonways.bridgenet.model.service.reports.ReportReason;
 import me.moonways.bridgenet.model.service.reports.ReportedPlayer;
 import me.moonways.bridgenet.model.service.reports.ReportsServiceModel;
-import me.moonways.bridgenet.rmi.endpoint.persistance.EndpointRemoteObject;
+import me.moonways.bridgenet.services.loader.endpoint.EndpointServiceObject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public final class ReportsServiceEndpoint extends EndpointRemoteObject implements ReportsServiceModel {
-
-    private static final long serialVersionUID = 8862521493276490323L;
+public final class ReportsServiceEndpoint extends EndpointServiceObject implements ReportsServiceModel {
 
     private final List<ReportedPlayer> reportedPlayersList = new ArrayList<>();
 
     @Inject
     private EventService eventService;
-
-    public ReportsServiceEndpoint() throws RemoteException {
-        super();
-    }
 
     private void validateNull(ReportStub report) {
         if (report == null) {
@@ -60,21 +53,17 @@ public final class ReportsServiceEndpoint extends EndpointRemoteObject implement
         validateNameNull(whoReportedName, "intruder name");
         validateNameNull(whoReportedName, "server name");
 
-        try {
-            ReportStub report = new ReportStub(reason, whoReportedName, intruderName, comment, whereServerName, System.currentTimeMillis());
+        ReportStub report = new ReportStub(reason, whoReportedName, intruderName, comment, whereServerName, System.currentTimeMillis());
 
-            ReportedPlayer reportedPlayer = getReportedPlayer(report);
-            reportedPlayer.addReport(report);
+        ReportedPlayer reportedPlayer = getReportedPlayer(report);
+        reportedPlayer.addReport(report);
 
-            eventService.fireEvent(
-                    ReportCreateEvent.builder()
-                            .report(report)
-                            .build());
+        eventService.fireEvent(
+                ReportCreateEvent.builder()
+                        .report(report)
+                        .build());
 
-            return report;
-        } catch (RemoteException e) {
-            throw new RuntimeException(e);
-        }
+        return report;
     }
 
     @Override
@@ -167,13 +156,7 @@ public final class ReportsServiceEndpoint extends EndpointRemoteObject implement
 
         List<Report> collect = getTotalReports()
                 .stream()
-                .filter(report -> {
-                    try {
-                        return report.getWhoReportedName().equalsIgnoreCase(reporterName);
-                    } catch (RemoteException e) {
-                        throw new RuntimeException(e);
-                    }
-                })
+                .filter(report -> report.getWhoReportedName().equalsIgnoreCase(reporterName))
                 .collect(Collectors.toList());
 
         if (collect.isEmpty()) {
@@ -193,20 +176,8 @@ public final class ReportsServiceEndpoint extends EndpointRemoteObject implement
 
         List<Report> collect = getTotalReports()
                 .stream()
-                .filter(report -> {
-                    try {
-                        return report.getIntruderName().equalsIgnoreCase(intruderName);
-                    } catch (RemoteException e) {
-                        throw new RuntimeException(e);
-                    }
-                })
-                .filter(report -> {
-                    try {
-                        return report.getWhoReportedName().equalsIgnoreCase(reporterName);
-                    } catch (RemoteException e) {
-                        throw new RuntimeException(e);
-                    }
-                })
+                .filter(report -> report.getIntruderName().equalsIgnoreCase(intruderName))
+                .filter(report -> report.getWhoReportedName().equalsIgnoreCase(reporterName))
                 .collect(Collectors.toList());
 
         if (collect.isEmpty()) {

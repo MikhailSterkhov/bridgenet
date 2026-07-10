@@ -11,7 +11,6 @@ import me.moonways.bridgenet.model.service.servers.ServersServiceModel;
 import me.moonways.bridgenet.mtp.message.ExportedMessage;
 import org.jetbrains.annotations.NotNull;
 
-import java.rmi.RemoteException;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -29,7 +28,7 @@ public final class PlayerConnectionStub implements PlayerConnection {
     private ServersServiceModel serversServiceModel;
 
     @Override
-    public CompletableFuture<PlayerPostRedirectEvent> connect(@NotNull EntityServer server) throws RemoteException {
+    public CompletableFuture<PlayerPostRedirectEvent> connect(@NotNull EntityServer server) {
         return server.connectThat(player).thenApply(isSuccess -> {
 
             if (isSuccess) {
@@ -43,7 +42,7 @@ public final class PlayerConnectionStub implements PlayerConnection {
     }
 
     @Override
-    public CompletableFuture<PlayerPostRedirectEvent> connect(@NotNull UUID serverID) throws RemoteException {
+    public CompletableFuture<PlayerPostRedirectEvent> connect(@NotNull UUID serverID) {
         Optional<EntityServer> serverOptional = serversServiceModel.getServerExact(serverID);
         if (!serverOptional.isPresent()) {
             return CompletableFuture.completedFuture(null);
@@ -52,17 +51,17 @@ public final class PlayerConnectionStub implements PlayerConnection {
     }
 
     @Override
-    public Optional<EntityServer> getServer() throws RemoteException {
+    public Optional<EntityServer> getServer() {
         return Optional.ofNullable(currentServer);
     }
 
     @Override
-    public Optional<EntityServer> getServerOnJoined() throws RemoteException {
+    public Optional<EntityServer> getServerOnJoined() {
         return Optional.ofNullable(serverOnJoined);
     }
 
     @Override
-    public void send(@NotNull Object message) throws RemoteException {
+    public void send(@NotNull Object message) {
         Optional<EntityServer> serverOptional = getServer();
         if (serverOptional.isPresent()) {
             serverOptional.get().send(message);
@@ -70,7 +69,7 @@ public final class PlayerConnectionStub implements PlayerConnection {
     }
 
     @Override
-    public void send(@NotNull ExportedMessage message) throws RemoteException {
+    public void send(@NotNull ExportedMessage message) {
         Optional<EntityServer> serverOptional = getServer();
         if (serverOptional.isPresent()) {
             serverOptional.get().send(message);
@@ -78,7 +77,7 @@ public final class PlayerConnectionStub implements PlayerConnection {
     }
 
     @Override
-    public <R> CompletableFuture<R> sendAwait(@NotNull Class<R> responseType, @NotNull Object message) throws RemoteException {
+    public <R> CompletableFuture<R> sendAwait(@NotNull Class<R> responseType, @NotNull Object message) {
         Optional<EntityServer> serverOptional = getServer();
         if (serverOptional.isPresent()) {
             return serverOptional.get().sendAwait(responseType, message);
@@ -87,7 +86,7 @@ public final class PlayerConnectionStub implements PlayerConnection {
     }
 
     @Override
-    public <R> CompletableFuture<R> sendAwait(int timeout, @NotNull Class<R> responseType, @NotNull Object message) throws RemoteException {
+    public <R> CompletableFuture<R> sendAwait(int timeout, @NotNull Class<R> responseType, @NotNull Object message) {
         Optional<EntityServer> serverOptional = getServer();
         if (serverOptional.isPresent()) {
             return serverOptional.get().sendAwait(timeout, responseType, message);

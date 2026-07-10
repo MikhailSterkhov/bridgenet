@@ -1,23 +1,21 @@
 package me.moonways.bridgenet.model.service.parties;
 
-import me.moonways.bridgenet.rmi.service.RemoteService;
 import org.jetbrains.annotations.NotNull;
 
-import java.rmi.RemoteException;
 
-public interface PartiesServiceModel extends RemoteService {
+public interface PartiesServiceModel {
 
-    void registerParty(@NotNull Party party) throws RemoteException;
+    void registerParty(@NotNull Party party);
 
-    void unregisterParty(@NotNull Party party) throws RemoteException;
+    void unregisterParty(@NotNull Party party);
 
-    Party createParty(@NotNull String ownerName) throws RemoteException;
+    Party createParty(@NotNull String ownerName);
 
-    Party getRegisteredParty(@NotNull String memberName) throws RemoteException;
+    Party getRegisteredParty(@NotNull String memberName);
 
-    Party createParty(@NotNull String ownerName, @NotNull String... firstMembersNames) throws RemoteException;
+    Party createParty(@NotNull String ownerName, @NotNull String... firstMembersNames);
 
-    boolean isMemberOf(@NotNull Party party, @NotNull String playerName) throws RemoteException;
+    boolean isMemberOf(@NotNull Party party, @NotNull String playerName);
 
-    boolean hasParty(@NotNull String playerName) throws RemoteException;
+    boolean hasParty(@NotNull String playerName);
 }

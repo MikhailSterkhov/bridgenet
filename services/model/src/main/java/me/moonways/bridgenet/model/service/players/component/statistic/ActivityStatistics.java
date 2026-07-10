@@ -1,14 +1,12 @@
 package me.moonways.bridgenet.model.service.players.component.statistic;
 
-import java.rmi.Remote;
-import java.rmi.RemoteException;
 
-public interface ActivityStatistics extends Remote {
+public interface ActivityStatistics {
 
     /**
      * Сбросить все статистики активности игрока.
      */
-    void reset() throws RemoteException;
+    void reset();
 
     /**
      * Установить значение целочисленной статистики.
@@ -16,7 +14,7 @@ public interface ActivityStatistics extends Remote {
      * @param statistic - Статистика, для которой нужно установить значение.
      * @param value     - Значение статистики.
      */
-    void setInt(Statistic statistic, int value) throws RemoteException;
+    void setInt(Statistic statistic, int value);
 
     /**
      * Установить значение длинной статистики.
@@ -24,7 +22,7 @@ public interface ActivityStatistics extends Remote {
      * @param statistic - Статистика, для которой нужно установить значение.
      * @param value     - Значение статистики.
      */
-    void setLong(Statistic statistic, long value) throws RemoteException;
+    void setLong(Statistic statistic, long value);
 
     /**
      * Получить значение целочисленной статистики.
@@ -32,7 +30,7 @@ public interface ActivityStatistics extends Remote {
      * @param statistic - Статистика, для которой нужно получить значение.
      * @return - Значение целочисленной статистики.
      */
-    int getInt(Statistic statistic) throws RemoteException;
+    int getInt(Statistic statistic);
 
     /**
      * Получить значение длинной статистики.
@@ -40,5 +38,5 @@ public interface ActivityStatistics extends Remote {
      * @param statistic - Статистика, для которой нужно получить значение.
      * @return - Значение длинной статистики.
      */
-    long getLong(Statistic statistic) throws RemoteException;
+    long getLong(Statistic statistic);
 }

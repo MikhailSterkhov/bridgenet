@@ -8,7 +8,6 @@ import me.moonways.bridgenet.model.service.gui.click.ClickAction;
 import me.moonways.bridgenet.mtp.message.persistence.InboundMessageListener;
 import me.moonways.bridgenet.mtp.message.persistence.SubscribeMessage;
 
-import java.rmi.RemoteException;
 
 @Log4j2
 @RequiredArgsConstructor
@@ -18,7 +17,7 @@ public final class InboundGuiClickListener {
     private final GuiServiceEndpoint guiService;
 
     @SubscribeMessage
-    public void handle(FireClickAction message) throws RemoteException {
+    public void handle(FireClickAction message) {
         guiService.fireClickAction(
                 ClickAction.builder()
                         .playerId(message.getPlayerId())

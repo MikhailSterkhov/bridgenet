@@ -2,19 +2,17 @@ package me.moonways.bridgenet.model.service.parties;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.rmi.Remote;
-import java.rmi.RemoteException;
 import java.util.concurrent.TimeUnit;
 
-public interface Party extends Remote {
+public interface Party {
 
-    PartyOwner getOwner() throws RemoteException;
+    PartyOwner getOwner();
 
-    PartyMembersContainer getMembersContainer() throws RemoteException;
+    PartyMembersContainer getMembersContainer();
 
-    void setOwner(@NotNull PartyOwner newOwner) throws RemoteException;
+    void setOwner(@NotNull PartyOwner newOwner);
 
-    long getTimeOfCreated(@NotNull TimeUnit unit) throws RemoteException;
+    long getTimeOfCreated(@NotNull TimeUnit unit);
 
-    int getTotalMembersCount() throws RemoteException;
+    int getTotalMembersCount();
 }

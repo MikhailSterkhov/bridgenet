@@ -34,8 +34,8 @@
         <!-- Internal Bridgenet dependencies -->
         <dependency>
             <groupId>me.moonways.bridgenet</groupId>
-            <artifactId>rmi</artifactId>
-            <version>${rmi.version}</version>
+            <artifactId>services-loader</artifactId>
+            <version>${services.loader.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

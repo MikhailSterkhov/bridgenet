@@ -8,7 +8,7 @@ import me.moonways.bridgenet.test.data.TestConst;
 import me.moonways.bridgenet.test.data.management.ExampleClientConnection;
 import me.moonways.bridgenet.test.engine.ModernTestEngineRunner;
 import me.moonways.bridgenet.test.engine.component.module.impl.MtpModule;
-import me.moonways.bridgenet.test.engine.component.module.impl.RmiServicesModule;
+import me.moonways.bridgenet.test.engine.component.module.impl.ServicesModule;
 import me.moonways.bridgenet.test.engine.persistance.TestModules;
 import me.moonways.bridgenet.test.engine.persistance.TestOrdered;
 import org.junit.Test;
@@ -20,7 +20,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(ModernTestEngineRunner.class)
-@TestModules({MtpModule.class, RmiServicesModule.class/* for starting a bus mtp-server */})
+@TestModules({MtpModule.class, ServicesModule.class/* for starting a bus mtp-server */})
 public class ClientHandshakeTest {
 
     @Inject

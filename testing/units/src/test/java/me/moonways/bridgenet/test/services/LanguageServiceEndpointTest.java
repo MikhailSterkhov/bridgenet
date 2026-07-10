@@ -9,14 +9,13 @@ import me.moonways.bridgenet.model.service.language.*;
 import me.moonways.bridgenet.test.data.TestConst;
 import me.moonways.bridgenet.test.data.junit.assertion.ServicesAssert;
 import me.moonways.bridgenet.test.engine.ModernTestEngineRunner;
-import me.moonways.bridgenet.test.engine.component.module.impl.RmiServicesModule;
+import me.moonways.bridgenet.test.engine.component.module.impl.ServicesModule;
 import me.moonways.bridgenet.test.engine.persistance.TestModules;
 import me.moonways.bridgenet.test.engine.persistance.TestOrdered;
 import net.kyori.adventure.text.Component;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.rmi.RemoteException;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -24,7 +23,7 @@ import static org.junit.Assert.*;
 
 @Log4j2
 @RunWith(ModernTestEngineRunner.class)
-@TestModules(RmiServicesModule.class)
+@TestModules(ServicesModule.class)
 public class LanguageServiceEndpointTest {
 
     @Inject
@@ -46,7 +45,7 @@ public class LanguageServiceEndpointTest {
 
     @Test
     @TestOrdered(2)
-    public void test_playerLanguageGet() throws RemoteException {
+    public void test_playerLanguageGet() {
         Language language = serviceModel.getPlayerLang(TestConst.Player.ID);
 
         log.debug(language);
@@ -56,7 +55,7 @@ public class LanguageServiceEndpointTest {
 
     @Test
     @TestOrdered(3)
-    public void test_playerLanguageSet() throws RemoteException {
+    public void test_playerLanguageSet() {
         eventService.subscribe(
                 EventSubscribeBuilder.newBuilder(PlayerLanguageUpdateEvent.class)
                         .follow(log::debug)
@@ -73,7 +72,7 @@ public class LanguageServiceEndpointTest {
 
     @Test
     @TestOrdered(4)
-    public void test_defaultLanguage() throws RemoteException {
+    public void test_defaultLanguage() {
         Language language = serviceModel.getDefault();
 
         log.debug(language);
@@ -83,7 +82,7 @@ public class LanguageServiceEndpointTest {
 
     @Test
     @TestOrdered(5)
-    public void test_messageGet() throws RemoteException {
+    public void test_messageGet() {
         Language language = serviceModel.getPlayerLang(TestConst.Player.ID);
 
         Component message = serviceModel.message(language, MessageTypes.GREETING_ON_JOIN);
@@ -94,7 +93,7 @@ public class LanguageServiceEndpointTest {
 
     @Test
     @TestOrdered(6)
-    public void test_languageCreate() throws RemoteException {
+    public void test_languageCreate() {
         Language language = TestConst.Languages.ANY_UNKNOWN_LANG;
 
         // automatically applying a default language - ENGLISH
@@ -109,7 +108,7 @@ public class LanguageServiceEndpointTest {
 
     @Test
     @TestOrdered(7)
-    public void test_unknownMessage() throws RemoteException {
+    public void test_unknownMessage() {
         Language language = LanguageTypes.GERMANY;
 
         String messageText = serviceModel.messageText(language, TestConst.Languages.ANY_UNKNOWN_MESSAGE);

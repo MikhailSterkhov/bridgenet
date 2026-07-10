@@ -19,7 +19,6 @@ import net.kyori.adventure.text.TextComponent;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.rmi.RemoteException;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -36,7 +35,7 @@ public final class InboundPlayerCommandListener {
     private CommandExecutor commandExecutor;
 
     @SubscribeMessage
-    public void handle(InboundMessageContext<SendCommand> context) throws RemoteException {
+    public void handle(InboundMessageContext<SendCommand> context) {
         SendCommand message = context.getMessage();
         Optional<Player> playerOptional = playerStoreStub.get(message.getPlayerId());
 
@@ -84,21 +83,13 @@ public final class InboundPlayerCommandListener {
 
         public synchronized void flushMessageText() {
             if (!textComponent.content().isEmpty() || !textComponent.children().isEmpty()) {
-                try {
-                    player.sendMessage(textComponent);
-                } catch (RemoteException exception) {
-                    throw new RuntimeException(exception);
-                }
+                player.sendMessage(textComponent);
             }
         }
 
         @Override
         public String getName() {
-            try {
-                return player.getName();
-            } catch (RemoteException e) {
-                throw new RuntimeException(e);
-            }
+            return player.getName();
         }
 
         @Override
@@ -116,11 +107,7 @@ public final class InboundPlayerCommandListener {
 
         @Override
         public synchronized boolean hasPermission(@NotNull String permission) {
-            try {
-                return player.hasPermission(Permission.named(permission));
-            } catch (RemoteException e) {
-                throw new RuntimeException(e);
-            }
+            return player.hasPermission(Permission.named(permission));
         }
     }
 }

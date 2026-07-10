@@ -10,7 +10,6 @@ import me.moonways.bridgenet.jdbc.entity.EntityRepositoryFactory;
 import me.moonways.bridgenet.model.service.settings.Setting;
 import me.moonways.bridgenet.model.service.settings.SettingID;
 
-import java.rmi.RemoteException;
 import java.util.Map;
 import java.util.UUID;
 
@@ -27,14 +26,14 @@ public class PlayerSettings {
     private EntityRepositoryFactory entityRepositoryFactory;
 
     @SuppressWarnings("unchecked")
-    public <T> Setting<T> get(SettingID<T> id) throws RemoteException {
+    public <T> Setting<T> get(SettingID<T> id) {
         if (settings.containsKey(id)) {
             return (Setting<T>) settings.get(id);
         }
         return createAndInsert(id);
     }
 
-    private <T> Setting<T> create(SettingID<T> id) throws RemoteException {
+    private <T> Setting<T> create(SettingID<T> id) {
         Setting<T> setting = new SettingStub<>(id);
         settings.put(id, setting);
 
@@ -43,7 +42,7 @@ public class PlayerSettings {
         return setting;
     }
 
-    private <T> Setting<T> createAndInsert(SettingID<T> id) throws RemoteException {
+    private <T> Setting<T> createAndInsert(SettingID<T> id) {
         Setting<T> setting = create(id);
         insertEntity(setting);
         return setting;
@@ -62,16 +61,11 @@ public class PlayerSettings {
         //noinspection unchecked
         SettingID<Object> settingID = (SettingID<Object>) SettingID.fromUuid(entitySetting.getSettingId())
                 .orElseThrow(() -> new SettingsEndpointException("setting by id - " + entitySetting.getSettingId() + " is not found"));
-        try {
-            Setting<Object> setting = create(settingID);
-            setting.set(entitySetting.getValue());
-
-        } catch (RemoteException exception) {
-            throw new SettingsEndpointException(exception);
-        }
+        Setting<Object> setting = create(settingID);
+        setting.set(entitySetting.getValue());
     }
 
-    private void updateEntity(Setting<?> setting) throws RemoteException {
+    private void updateEntity(Setting<?> setting) {
         EntitySetting entitySetting = EntitySetting.fromSetting(playerID, setting);
         EntityRepository<EntitySetting> repository
                 = entityRepositoryFactory.fromEntityType(entitySetting);
@@ -81,7 +75,7 @@ public class PlayerSettings {
         insertEntity(setting);
     }
 
-    private <T> void insertEntity(Setting<?> setting) throws RemoteException {
+    private <T> void insertEntity(Setting<?> setting) {
         EntitySetting entitySetting = EntitySetting.fromSetting(playerID, setting);
         EntityRepository<EntitySetting> repository
                 = entityRepositoryFactory.fromEntityType(entitySetting);

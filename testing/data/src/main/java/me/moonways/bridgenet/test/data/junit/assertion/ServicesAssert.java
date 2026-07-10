@@ -10,12 +10,11 @@ import me.moonways.bridgenet.model.service.language.Language;
 import me.moonways.bridgenet.test.data.TestConst;
 import org.junit.Assert;
 
-import java.rmi.RemoteException;
 
 @UtilityClass
 public class ServicesAssert {
 
-    public void assertGame(Game game, CreateGame.Result subj, GameStatus gameStatus) throws RemoteException {
+    public void assertGame(Game game, CreateGame.Result subj, GameStatus gameStatus) {
         Assert.assertNotNull(game);
         Assert.assertNotNull(subj);
         Assert.assertNotNull(gameStatus);

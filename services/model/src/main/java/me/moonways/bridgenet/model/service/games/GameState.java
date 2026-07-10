@@ -2,56 +2,54 @@ package me.moonways.bridgenet.model.service.games;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.rmi.Remote;
-import java.rmi.RemoteException;
 
-public interface GameState extends Remote {
+public interface GameState {
 
     /**
      * Получить статус игрового сервера.
      */
-    GameStatus getStatus() throws RemoteException;
+    GameStatus getStatus();
 
     /**
      * Получить название карты игрового сервера.
      */
-    String getMap() throws RemoteException;
+    String getMap();
 
     /**
      * Сверить статус игрового сервера на необходимый.
      *
      * @param gameStatus - игровой статус.
      */
-    boolean checkStatus(@NotNull GameStatus gameStatus) throws RemoteException;
+    boolean checkStatus(@NotNull GameStatus gameStatus);
 
     /**
      * Получить максимальное возможное количество игроков,
      * которые могут одновременно играть на данном игровом сервере.
      */
-    int getMaxPlayers() throws RemoteException;
+    int getMaxPlayers();
 
     /**
      * Получить максимальное возможное количество игроков
      * в команде.
      */
-    int getPlayersInTeam() throws RemoteException;
+    int getPlayersInTeam();
 
     /**
      * Получить количество игроков, играющих или находящихся
      * в ожидании сейчас на сервере.
      */
-    int getPlayers() throws RemoteException;
+    int getPlayers();
 
     /**
      * Получить количество наблюдателей за игрой
      */
-    int getSpectators() throws RemoteException;
+    int getSpectators();
 
     /**
      * Получить общее суммарное количество игроков на данном
      * игровом сервере.
      */
-    default int getTotalPlayers() throws RemoteException {
+    default int getTotalPlayers() {
         int players = getPlayers();
         int spectators = getSpectators();
 

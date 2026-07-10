@@ -13,18 +13,17 @@ import me.moonways.bridgenet.model.service.gui.item.entries.material.MaterialEnt
 import me.moonways.bridgenet.model.service.gui.item.types.Materials;
 import me.moonways.bridgenet.test.data.TestConst;
 import me.moonways.bridgenet.test.engine.ModernTestEngineRunner;
-import me.moonways.bridgenet.test.engine.component.module.impl.RmiServicesModule;
+import me.moonways.bridgenet.test.engine.component.module.impl.ServicesModule;
 import me.moonways.bridgenet.test.engine.persistance.TestModules;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.rmi.RemoteException;
 
 import static org.junit.Assert.*;
 
 @Log4j2
 @RunWith(ModernTestEngineRunner.class)
-@TestModules(RmiServicesModule.class)
+@TestModules(ServicesModule.class)
 public class GuiServiceEndpointTest {
 
     @Inject
@@ -43,7 +42,7 @@ public class GuiServiceEndpointTest {
     }
 
     @Test
-    public void test_itemStackCreate() throws RemoteException {
+    public void test_itemStackCreate() {
         ItemStack itemStack = ItemStack.create()
                 .material(TestConst.Items.MATERIAL)
                 .name(TestConst.Items.NAME);
@@ -55,7 +54,7 @@ public class GuiServiceEndpointTest {
     }
 
     @Test
-    public void test_createGuiFromType() throws RemoteException {
+    public void test_createGuiFromType() {
         Gui gui = serviceModel.createGui(GuiType.CHEST_4_ROW);
 
         log.debug(gui);
@@ -67,7 +66,7 @@ public class GuiServiceEndpointTest {
     }
 
     @Test
-    public void test_createGuiFromDescription() throws RemoteException {
+    public void test_createGuiFromDescription() {
         Gui gui = serviceModel.createGui(
                 GuiDescription.builder()
                         .type(TestConst.Inventory.TYPE)
@@ -83,7 +82,7 @@ public class GuiServiceEndpointTest {
     }
 
     @Test
-    public void test_createGuiWithItems() throws RemoteException {
+    public void test_createGuiWithItems() {
         Gui gui = serviceModel.createGui(TestConst.Inventory.TYPE);
         gui.setItem(TestConst.Items.SLOT,
                 ItemStack.create()

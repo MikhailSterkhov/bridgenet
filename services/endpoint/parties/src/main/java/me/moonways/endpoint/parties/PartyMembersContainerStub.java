@@ -11,7 +11,6 @@ import me.moonways.bridgenet.model.service.players.PlayersServiceModel;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.rmi.RemoteException;
 import java.util.ArrayList;
 
 @RequiredArgsConstructor
@@ -44,7 +43,7 @@ public class PartyMembersContainerStub extends ArrayList<PartyMember> implements
 
     @NotNull
     @Override
-    public PartyMember addMember(@NotNull String name) throws RemoteException {
+    public PartyMember addMember(@NotNull String name) {
         validateNull(name);
         PartyMember partyMember = new PartyMember(name, partyStub);
 
@@ -60,7 +59,7 @@ public class PartyMembersContainerStub extends ArrayList<PartyMember> implements
 
     @Nullable
     @Override
-    public PartyMember removeMember(@NotNull String name) throws RemoteException {
+    public PartyMember removeMember(@NotNull String name) {
         validateNull(name);
         PartyMember memberByName = getMemberByName(name);
 

@@ -17,7 +17,6 @@ import me.moonways.bridgenet.mtp.message.persistence.SubscribeMessage;
 import me.moonways.endpoint.players.PlayerStoreStub;
 import me.moonways.endpoint.players.player.PlayerConnectionStub;
 
-import java.rmi.RemoteException;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.UUID;
@@ -33,7 +32,7 @@ public final class InboundPlayerConnectionListener {
     private ServersServiceModel serversServiceModel;
 
     @SubscribeMessage
-    public void handle(InboundMessageContext<Handshake> context) throws RemoteException {
+    public void handle(InboundMessageContext<Handshake> context) {
         Handshake handshake = context.getMessage();
 
         if (handshake.getType() == Handshake.Type.PLAYER) {
@@ -66,7 +65,7 @@ public final class InboundPlayerConnectionListener {
     }
 
     @SubscribeMessage
-    public void handle(Redirect redirect) throws RemoteException {
+    public void handle(Redirect redirect) {
         Optional<Player> playerOptional = playerStoreStub.get(redirect.getPlayerUUID());
         Optional<EntityServer> serverOptional = serversServiceModel.getServerExact(redirect.getServerKey());
 
@@ -83,7 +82,7 @@ public final class InboundPlayerConnectionListener {
     }
 
     @SubscribeMessage
-    public void handle(Disconnect disconnect) throws RemoteException {
+    public void handle(Disconnect disconnect) {
         if (disconnect.getType() == Disconnect.Type.PLAYER) {
             Player player = playerStoreStub.removeOnlinePlayer(disconnect.getUuid());
 

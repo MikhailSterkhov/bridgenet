@@ -2,7 +2,7 @@ package me.moonways.bridgenet.test.engine.component.module.impl;
 
 import me.moonways.bridgenet.api.inject.Inject;
 import me.moonways.bridgenet.api.inject.bean.service.BeansService;
-import me.moonways.bridgenet.rmi.service.RemoteServicesManagement;
+import me.moonways.bridgenet.services.loader.EndpointsService;
 import me.moonways.bridgenet.test.data.ExampleClient;
 import me.moonways.bridgenet.test.engine.component.module.ModuleAdapter;
 import me.moonways.bridgenet.test.engine.component.module.ModuleConfig;
@@ -19,18 +19,18 @@ public class ClientsModule extends ModuleAdapter {
         super(ModuleConfig.builder()
                 .dependencies(
                         Collections.singletonList(
-                                RmiServicesModule.class
+                                ServicesModule.class
                         ))
                 .packagesToScanning(
                         Collections.singletonList(
-                                fromClassPackage(RemoteServicesManagement.class)
+                                fromClassPackage(EndpointsService.class)
                         ))
                 .build());
     }
 
     @Override
     public void install(TestFlowContext context) {
-        beansService.subscribeOn(RemoteServicesManagement.class, (remoteServicesManagement) ->
+        beansService.subscribeOn(EndpointsService.class, (remoteServicesManagement) ->
                 remoteServicesManagement.subscribeExportedAll(this::bindClient));
     }
 
