@@ -103,21 +103,35 @@ $ ./bridgenet help
 
 ---
 
-## В случае проблем с запуском на Windows
+## Требования и кроссплатформенность
 
-- Советуется запускать скрипт `./bridgenet` через **Git Bash**
+Скрипт работает на **macOS, Linux и Windows (Git Bash)**. Требуется установленный Apache Maven и JDK **8–24**.
+
+- **JDK подбирается автоматически**: если JDK по умолчанию не входит в поддерживаемый диапазон
+  (например, JDK 25+ — на них ломается Lombok `val`/`var`), скрипт сам найдёт подходящий JDK в
+  стандартных каталогах установки (в т.ч. `~/.jdks` от IntelliJ IDEA). Принудительно указать JDK:
+  ```shell
+  export BRIDGENET_JAVA_HOME=/path/to/jdk
+  ```
+- **Maven-настройки**: сборка идёт через нейтральный `.scripts/etc/maven-settings.xml`, чтобы
+  глобальные зеркала/прокси из `~/.m2/settings.xml` не ломали резолв зависимостей проекта.
+  Использовать свои настройки:
+  ```shell
+  export BRIDGENET_MAVEN_SETTINGS=/path/to/settings.xml
+  ```
+- **Оффлайн-зависимости**: каталог `.repo` — проектный Maven-репозиторий с артефактами CloudNet v3,
+  которые больше не доступны в публичных репозиториях. Не удаляйте его.
+- Если `sh bridgenet` запускается не из bash-совместимой оболочки (например, `dash` на Debian/Ubuntu),
+  скрипт сам перезапустится через bash.
 
 Возможные ошибки:
-- `mvn: command not found`: Необходимо найти скрипт `.scripts/utils.sh` и добавить туда строчку:
+- `mvn: command not found`: установите Maven и добавьте его `bin` в `PATH`, либо добавьте в
+  `.scripts/utils.sh` (до функции `run_mvn`) строчку:
   ```shell
-  alias mvn="path\to\maven\bin\mvn"
+  alias mvn="path/to/maven/bin/mvn"
   ```
-  
-  Например:
-
-  ```shell
-  alias mvn="D:\apache-maven-3.9.3\bin\mvn"
-  ```
+- `permission denied: ./bridgenet` (macOS/Linux): выполните `chmod +x bridgenet` или запускайте
+  как `sh bridgenet <команда>`.
 
 ---
 

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Neutral Maven settings used by the ./bridgenet build scripts.
+
+     The scripts pass this file via 'mvn -s' so that builds behave identically
+     on every machine: user-global mirrors/proxies from ~/.m2/settings.xml
+     (e.g. corporate Nexus mirrors that hijack third-party repositories) cannot
+     break dependency resolution of this project.
+
+     To build through your own settings instead, export
+     BRIDGENET_MAVEN_SETTINGS=/path/to/your/settings.xml before running ./bridgenet. -->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd">
+</settings>

@@ -1,0 +1,8 @@
+# Shell scripts must stay LF even on Windows checkouts (core.autocrlf=true
+# would otherwise convert them to CRLF and break bash: '\r: command not found').
+bridgenet eol=lf
+*.sh eol=lf
+
+# Never let text conversion touch binary artifacts.
+*.jar -text
+*.png -text

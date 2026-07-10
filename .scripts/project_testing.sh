@@ -1,5 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-cd testing/units
-mvn test
-cd ../../
+run_mvn test --file testing/units/pom.xml
+except_code
