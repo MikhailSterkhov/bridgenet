@@ -1,6 +1,22 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-source .scripts/utils.sh
+# Re-exec with bash when started via a plain POSIX shell,
+# e.g. 'sh bridgenet' on Debian/Ubuntu where sh is dash.
+if [ -z "$BASH_VERSION" ]; then
+  exec bash "$0" "$@"
+fi
+
+# Always run from the project root so relative paths work from any CWD.
+# CDPATH could reroute 'cd' to an attacker/typo-controlled directory.
+unset CDPATH
+cd "$(dirname "$0")" || exit 1
+
+source .scripts/utils.sh || exit 1
+
+preflight() {
+  require_maven
+  resolve_java
+}
 
 exec_help() {
   echo ">> Executable subcommands list:"
@@ -19,24 +35,30 @@ case $1 in
         exec_help
         ;;
     "-a" | "assemblyEndpoints")
+        preflight
         source .scripts/services_assemble.sh "$2"
         ;;
     "-e" | "endpoints")
+        preflight
         source .scripts/services_build.sh "$2"
         source .scripts/services_assemble.sh "$2"
         ;;
     "-j" | "jar")
+        preflight
         source .scripts/project_build.sh
         ;;
     "-b" | "build")
+        preflight
         source .scripts/project_build.sh
         source .scripts/services_build.sh "$2"
         source .scripts/services_assemble.sh "$2"
         ;;
     "-t" | "test")
+        preflight
         source .scripts/project_testing.sh "$2"
         ;;
     *)
         echo "$PREF Unknown command: $1"
         exec_help
+        exit 1
 esac

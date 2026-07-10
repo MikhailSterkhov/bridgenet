@@ -63,6 +63,19 @@
     </properties>
 
     <repositories>
+        <!-- In-project repository for artifacts that are no longer available online
+             (CloudNet v3 repository is dead). The .mvn directory at the project root
+             makes ${maven.multiModuleProjectDirectory} resolve to the project root. -->
+        <repository>
+            <id>bridgenet-local</id>
+            <url>file:///${maven.multiModuleProjectDirectory}/.repo</url>
+        </repository>
+        <!-- Explicit central before third-party repositories: most dependencies
+             live there, this keeps clean-machine resolution fast. -->
+        <repository>
+            <id>central</id>
+            <url>https://repo.maven.apache.org/maven2</url>
+        </repository>
         <repository>
             <id>jitpack.io</id>
             <url>https://jitpack.io</url>
@@ -85,12 +98,65 @@
         </repository>
     </repositories>
 
+    <profiles>
+        <!-- javac 23+ no longer runs annotation processors (Lombok) implicitly;
+             -proc:full is supported since JDK 21, so enable it explicitly there.
+             Older JDKs (8..20) keep the default implicit processing behavior. -->
+        <profile>
+            <id>annotation-processing-jdk21plus</id>
+            <activation>
+                <jdk>[21,)</jdk>
+            </activation>
+            <properties>
+                <maven.compiler.proc>full</maven.compiler.proc>
+            </properties>
+        </profile>
+    </profiles>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <!-- 3.13.0 is the first compiler plugin version that maps the
+                     maven.compiler.proc property; older defaults would silently
+                     skip Lombok annotation processing on JDK 23+. -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.13.0</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.4.1</version>
+                <executions>
+                    <execution>
+                        <id>enforce-supported-jdk</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[1.8,25)</version>
+                                    <message>BridgeNet supports JDK 8..24: Lombok val/var transformation breaks on newer JDKs. Point JAVA_HOME to a supported JDK (the ./bridgenet script selects one automatically).</message>
+                                </requireJavaVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
     <dependencies>
         <!-- Annotations processing utility dependencies -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.26</version>
+            <version>1.18.38</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
