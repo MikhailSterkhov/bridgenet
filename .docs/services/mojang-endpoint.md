@@ -9,7 +9,7 @@ production REST-эндпоинтами компании Mojang для получ
 ## MODEL
 
 Для использования сервиса необходимо использовать модельный
-<br>интерфейс `me.moonways.bridgenet.model.mojang.MojangServiceModel`:
+<br>интерфейс `me.moonways.bridgenet.model.service.mojang.MojangServiceModel`:
 
 ```java
 
@@ -25,11 +25,11 @@ private MojangServiceModel serviceModel;
 <br>мы можем использовать следующий функционал:
 
 ```java
-boolean isPirate = serviceModel.isPirate("Notch"); // false
+boolean isPirate = serviceModel.isPirateNick("Notch"); // false
 ```
 
 ```java
-boolean isPirate = serviceModel.isPirate("aboba538174"); // true
+boolean isPirate = serviceModel.isPirateNick("aboba538174"); // true
 ```
 
 Для получения актуального **идентификатора пользователя** по его
@@ -90,11 +90,11 @@ if (!nicknameOptional.isPresent()) {
     <!-- Service direction name -->
     <name>mojang</name>
     <!-- Target service class type -->
-    <modelPath>me.moonways.bridgenet.model.mojang.MojangServiceModel</modelPath>
+    <modelPath>me.moonways.bridgenet.model.service.mojang.MojangServiceModel</modelPath>
 </service>
 ```
 
-- Реализация эндпоинта лежит в модуле `endpoints/mojang`;
+- Реализация эндпоинта лежит в модуле `services/endpoint/mojang`;
 - Имплементацией основного модельного интерфейса сервиса
   <br>является `me.moonways.endpoint.mojang.MojangServiceEndpoint`;
 - Реализация эндпоинта использует REST-запросы, результаты которых сразу кеширует

@@ -8,7 +8,7 @@ Settings - Внутриигровой сервис удаленного дост
 ## MODEL
 
 Для использования сервиса необходимо использовать модельный
-<br>интерфейс `me.moonways.bridgenet.model.settings.PlayerSettingsServiceModel`:
+<br>интерфейс `me.moonways.bridgenet.model.service.settings.PlayerSettingsServiceModel`:
 
 ```java
 
@@ -62,11 +62,11 @@ public interface PlayerSettingsServiceModel extends RemoteService {
     <!-- Service direction name -->
     <name>settings</name>
     <!-- Target service class type -->
-    <modelPath>me.moonways.bridgenet.model.settings.PlayerSettingsServiceModel</modelPath>
+    <modelPath>me.moonways.bridgenet.model.service.settings.PlayerSettingsServiceModel</modelPath>
 </service>
 ```
 
-- Реализация эндпоинта лежит в модуле `endpoints/settings`;
+- Реализация эндпоинта лежит в модуле `services/endpoint/settings`;
 - Имплементацией основного модельного интерфейса сервиса
   <br>является `me.moonways.endpoint.settings.PlayerSettingsServiceEndpoint`;
 
@@ -78,4 +78,4 @@ Examples: `players_settings` (`me.moonways.endpoint.settings.EntitySetting`)
 | player_id                            | setting_id                           | setting_value                                                                       |
 |--------------------------------------|--------------------------------------|-------------------------------------------------------------------------------------|
 | 3c517d88-8b6f-445b-915c-b47af5140e76 | dc725c4f-93e7-30c5-8db3-d2cf7899657c | {"source":true,"classname":"java.lang.Boolean"}                                     |
-| 3c517d88-8b6f-445b-915c-b47af5140e76 | 891cd11e-a327-3b37-9b77-5581c0567b31 | {"source":"GREEN","classname":"me.moonways.bridgenet.api.util.minecraft.ChatColor"} |
+| 3c517d88-8b6f-445b-915c-b47af5140e76 | 891cd11e-a327-3b37-9b77-5581c0567b31 | {"source":"GREEN","classname":"me.moonways.bridgenet.api.minecraft.ChatColor"} |
