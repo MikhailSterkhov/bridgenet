@@ -1,6 +1,5 @@
 package me.moonways.bridgenet.model.service.players.component.statistic;
 
-
 public interface ActivityStatistics {
 
     /**

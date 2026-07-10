@@ -1,6 +1,5 @@
 package me.moonways.bridgenet.model.service.friends;
 
-
 import java.util.UUID;
 
 public interface FriendsServiceModel {

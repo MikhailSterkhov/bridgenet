@@ -86,7 +86,6 @@ public class PermissionsServiceEndpointTest {
         assertFalse(eventOptional.isPresent());
     }
 
-
     private Optional<PlayerPermissionAddEvent> processPermissionAdd(Permission permission) {
         eventService.subscribe(
                 EventSubscribeBuilder.newBuilder(PlayerPermissionAddEvent.class)

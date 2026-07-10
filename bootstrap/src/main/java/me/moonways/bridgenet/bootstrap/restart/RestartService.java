@@ -21,12 +21,12 @@ public final class RestartService {
     @Inject
     private BeansService beansService;
     @Inject
-    private EndpointsService remoteServicesManagement;
+    private EndpointsService endpointsService;
 
     public void doRestart() {
         log.info("§6Restarting an application...");
 
-        remoteServicesManagement.unbindEndpoints();
+        endpointsService.unbindEndpoints();
         appBootstrap.justShutdown();
 
         new ArrayList<>(beansStore.getTotalBeans()).forEach(beansService::unbind);

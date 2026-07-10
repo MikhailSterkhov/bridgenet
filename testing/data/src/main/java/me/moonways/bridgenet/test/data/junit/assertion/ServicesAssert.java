@@ -10,7 +10,6 @@ import me.moonways.bridgenet.model.service.language.Language;
 import me.moonways.bridgenet.test.data.TestConst;
 import org.junit.Assert;
 
-
 @UtilityClass
 public class ServicesAssert {
 

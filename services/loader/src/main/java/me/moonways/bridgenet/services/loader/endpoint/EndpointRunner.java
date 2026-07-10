@@ -106,7 +106,6 @@ public class EndpointRunner {
         return null;
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     private void bind(Endpoint endpoint) {
         ServiceInfo serviceInfo = endpoint.getServiceInfo();
         Class<?> serviceImplementClass = servicesImplementsMap.remove(endpoint);
@@ -117,7 +116,7 @@ public class EndpointRunner {
             log.info("Binding endpoint '{}' from §3{} §rto §9{}", serviceInfo.getName(),
                     serviceInfo.getModelClass().getSimpleName(), serviceInstance.getClass().getSimpleName());
 
-            beansService.bind((Class) serviceInfo.getModelClass(), serviceInstance);
+            beansService.bind(serviceInfo.getModelClass(), serviceInstance);
             endpointsService.registerService(serviceInfo, serviceInstance);
 
             if (serviceInstance instanceof EndpointServiceObject) {

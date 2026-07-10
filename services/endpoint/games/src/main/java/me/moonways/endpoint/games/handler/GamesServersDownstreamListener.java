@@ -13,7 +13,6 @@ import me.moonways.bridgenet.model.service.servers.ServerInfo;
 import me.moonways.bridgenet.mtp.channel.BridgenetNetworkChannel;
 import me.moonways.endpoint.games.GamesContainer;
 
-
 @RequiredArgsConstructor
 public class GamesServersDownstreamListener {
 

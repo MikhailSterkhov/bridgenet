@@ -1,6 +1,5 @@
 package me.moonways.bridgenet.model.service.reports;
 
-
 public interface Report {
 
     ReportReason getReason();

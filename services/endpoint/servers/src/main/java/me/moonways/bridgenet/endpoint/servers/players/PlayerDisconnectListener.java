@@ -5,7 +5,6 @@ import me.moonways.bridgenet.api.event.SubscribeEvent;
 import me.moonways.bridgenet.api.inject.Inject;
 import me.moonways.bridgenet.model.event.PlayerDisconnectEvent;
 
-
 @InboundEventListener
 public class PlayerDisconnectListener {
 

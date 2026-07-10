@@ -15,7 +15,6 @@ import me.moonways.bridgenet.services.loader.endpoint.EndpointRemoteContext;
 import me.moonways.bridgenet.services.loader.endpoint.EndpointServiceObject;
 import me.moonways.endpoint.bus.handler.GetCommandsMessageHandler;
 
-
 public final class BusServiceEndpoint extends EndpointServiceObject implements BusServiceModel {
 
     @Inject

@@ -1,6 +1,5 @@
 package me.moonways.bridgenet.model.service.mojang;
 
-
 import java.util.Optional;
 
 /**

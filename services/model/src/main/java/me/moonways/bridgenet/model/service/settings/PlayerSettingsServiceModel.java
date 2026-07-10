@@ -1,6 +1,5 @@
 package me.moonways.bridgenet.model.service.settings;
 
-
 import java.util.Collection;
 import java.util.UUID;
 

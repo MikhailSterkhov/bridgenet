@@ -38,6 +38,14 @@ public class NetworkMessagesService {
     }
 
     public void bindMessages(boolean reverse) {
+        // Инвариант: id сообщений присваиваются по порядку в отсортированном по FQN
+        // списке классов, поэтому id message-класса Handshake зависит от того, сколько
+        // классов сортируются раньше него. Добавление нового message-класса с FQN,
+        // сортирующимся раньше me.moonways.bridgenet.model.message.Handshake, сдвинет
+        // id Handshake и сломает fail-fast проверку версии протокола при смешанных
+        // версиях ядра/клиента. Новые message-классы называть так, чтобы FQN
+        // сортировался после Handshake, либо бампать ProtocolVersion.CURRENT и
+        // деплоить ядро и плагины строго вместе.
         List<Object> messagesList = messagesResult.toList();
         messagesList.sort(Comparator.comparing(o -> o.getClass().getName()));
 

@@ -1,6 +1,5 @@
 package me.moonways.bridgenet.model.service.auth;
 
-
 import java.util.Optional;
 import java.util.UUID;
 

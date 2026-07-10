@@ -2,7 +2,6 @@ package me.moonways.bridgenet.model.service.gui.item;
 
 import me.moonways.bridgenet.model.service.gui.item.entries.material.Material;
 
-
 /**
  * Интерфейс Items представляет собой фабрику ItemStack для создания различных типов предметов в Minecraft.
  * Этот интерфейс определяет методы для создания ItemStack

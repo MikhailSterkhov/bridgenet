@@ -18,7 +18,6 @@ import me.moonways.bridgenet.test.engine.persistance.TestModules;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-
 import static org.junit.Assert.*;
 
 @Log4j2

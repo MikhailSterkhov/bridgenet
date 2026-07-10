@@ -71,7 +71,6 @@ public class ClientStressMessagesTest {
                 channel.send(new SendCommand(playerID, "/testCommand")));
     }
 
-
     private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijtklmnopqrstuvwxyz1234567890";
 
     private static String randomString(int length) {

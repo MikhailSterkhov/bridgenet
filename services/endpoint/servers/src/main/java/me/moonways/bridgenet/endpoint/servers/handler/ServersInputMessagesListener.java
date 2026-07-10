@@ -68,6 +68,7 @@ public class ServersInputMessagesListener {
                 log.error("§4Handshake rejected: protocol version mismatch (server={}, client={})",
                         ProtocolVersion.CURRENT, handshake.getProtocolVersion());
                 input.callback(new Handshake.Failure());
+                input.getChannel().close();
                 return;
             }
 

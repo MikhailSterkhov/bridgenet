@@ -6,7 +6,7 @@ import me.moonways.bridgenet.model.service.players.component.PlayerStore;
 import java.util.List;
 
 /**
- * Интерфейс PlayersServiceModel расширяет интерфейс RemoteService и
+ * Интерфейс PlayersServiceModel — интерфейс сервиса ядра Bridgenet и
  * предоставляет методы для работы с игроками в сетевой игре в Minecraft.
  * Этот интерфейс включает методы для получения объекта PlayerLeveling,
  * объекта PlayerStore, общего количества игроков онлайн и списка онлайн игроков.

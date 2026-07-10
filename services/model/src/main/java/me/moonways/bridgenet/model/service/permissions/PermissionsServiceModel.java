@@ -3,7 +3,6 @@ package me.moonways.bridgenet.model.service.permissions;
 import me.moonways.bridgenet.model.service.permissions.group.GroupsManager;
 import me.moonways.bridgenet.model.service.permissions.permission.PermissionsManager;
 
-
 public interface PermissionsServiceModel {
 
     /**

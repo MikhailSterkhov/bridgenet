@@ -8,7 +8,6 @@ import me.moonways.bridgenet.services.loader.endpoint.EndpointServiceObject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-
 @ToString
 @Getter
 public class ReportStub extends EndpointServiceObject implements Report {

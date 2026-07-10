@@ -8,7 +8,6 @@ import me.moonways.bridgenet.services.loader.endpoint.EndpointServiceObject;
 import me.moonways.endpoint.permissions.manager.GroupsManagerStub;
 import me.moonways.endpoint.permissions.manager.PermissionsManagerStub;
 
-
 public final class PermissionsServiceEndpoint extends EndpointServiceObject implements PermissionsServiceModel {
     private final GroupsManager groupsManager = new GroupsManagerStub();
     private final PermissionsManager permissionsManager = new PermissionsManagerStub();

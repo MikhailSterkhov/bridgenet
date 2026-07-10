@@ -2,7 +2,6 @@ package me.moonways.bridgenet.model.service.games;
 
 import org.jetbrains.annotations.NotNull;
 
-
 public interface GameState {
 
     /**

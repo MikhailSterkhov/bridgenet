@@ -41,6 +41,7 @@ public final class InboundPlayerConnectionListener {
                 log.error("§4Handshake rejected: protocol version mismatch (server={}, client={})",
                         ProtocolVersion.CURRENT, handshake.getProtocolVersion());
                 context.callback(new Handshake.Failure());
+                context.getChannel().close();
                 return;
             }
 

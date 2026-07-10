@@ -8,7 +8,6 @@ import me.moonways.bridgenet.model.service.gui.click.ClickAction;
 import me.moonways.bridgenet.mtp.message.persistence.InboundMessageListener;
 import me.moonways.bridgenet.mtp.message.persistence.SubscribeMessage;
 
-
 @Log4j2
 @RequiredArgsConstructor
 @InboundMessageListener

@@ -2,7 +2,6 @@ package me.moonways.bridgenet.model.service.parties;
 
 import org.jetbrains.annotations.NotNull;
 
-
 public interface PartiesServiceModel {
 
     void registerParty(@NotNull Party party);
