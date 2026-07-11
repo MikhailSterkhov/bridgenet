@@ -62,12 +62,7 @@ public final class RmapCodec {
         }
         // объекты (задача 4)
         if (c.isAnnotationPresent(RmapSerializable.class)) {
-            int existing = refs.writeIndexOrRegister(value);
-            if (existing >= 0) {
-                out.writeByte(Tags.BACK_REF);
-                out.writeInt(existing);
-                return;
-            }
+            if (refBackRef(out, refs, value)) return;
             checkDepth(depth);
             out.writeByte(Tags.OBJECT);
             interner.writeClassRef(out, c);
@@ -76,7 +71,61 @@ public final class RmapCodec {
             }
             return;
         }
-        throw new RmapCodecException("no encoding for " + c.getName() + " (коллекции — задача 5, ValueCodec — задача 6)");
+        // коллекции/массивы (задача 5)
+        if (value instanceof java.util.Map) {
+            java.util.Map<?, ?> m = (java.util.Map<?, ?>) value;
+            if (refBackRef(out, refs, value)) return;
+            checkDepth(depth);
+            out.writeByte(Tags.MAP);
+            out.writeInt(m.size());
+            for (java.util.Map.Entry<?, ?> e : m.entrySet()) {
+                encode(out, e.getKey(), interner, refs, depth + 1);
+                encode(out, e.getValue(), interner, refs, depth + 1);
+            }
+            return;
+        }
+        if (value instanceof java.util.Set) {
+            encodeSequence(out, (java.util.Collection<?>) value, Tags.SET, interner, refs, depth);
+            return;
+        }
+        if (value instanceof java.util.Collection) { // List и прочие Collection → LIST
+            encodeSequence(out, (java.util.Collection<?>) value, Tags.LIST, interner, refs, depth);
+            return;
+        }
+        if (c.isArray() && !c.getComponentType().isPrimitive()) { // byte[] уже обработан выше как BYTES
+            Object[] arr = (Object[]) value;
+            if (refBackRef(out, refs, value)) return;
+            checkDepth(depth);
+            out.writeByte(Tags.ARRAY);
+            interner.writeClassRef(out, c.getComponentType());
+            out.writeInt(arr.length);
+            for (Object el : arr) {
+                encode(out, el, interner, refs, depth + 1);
+            }
+            return;
+        }
+        throw new RmapCodecException("no encoding for " + c.getName() + " (ValueCodec — задача 6)");
+    }
+
+    private boolean refBackRef(RmapByteWriter out, RefTable refs, Object value) {
+        int existing = refs.writeIndexOrRegister(value);
+        if (existing >= 0) {
+            out.writeByte(Tags.BACK_REF);
+            out.writeInt(existing);
+            return true;
+        }
+        return false;
+    }
+
+    private void encodeSequence(RmapByteWriter out, java.util.Collection<?> coll, int tag,
+                                ClassInterner interner, RefTable refs, int depth) {
+        if (refBackRef(out, refs, coll)) return;
+        checkDepth(depth);
+        out.writeByte(tag);
+        out.writeInt(coll.size());
+        for (Object el : coll) {
+            encode(out, el, interner, refs, depth + 1);
+        }
     }
 
     // ---- decode ----
@@ -99,6 +148,10 @@ public final class RmapCodec {
             case Tags.ENUM: return decodeEnum(in, whitelist, interner);
             case Tags.BACK_REF: return refs.readGet(in.readInt());
             case Tags.OBJECT: return decodeObject(in, whitelist, interner, refs, depth);
+            case Tags.LIST: return decodeSequence(in, whitelist, interner, refs, depth, false);
+            case Tags.SET: return decodeSequence(in, whitelist, interner, refs, depth, true);
+            case Tags.MAP: return decodeMap(in, whitelist, interner, refs, depth);
+            case Tags.ARRAY: return decodeArray(in, whitelist, interner, refs, depth);
             default:
                 throw new RmapCodecException("unknown or not-yet-supported tag 0x" + Integer.toHexString(tag));
         }
@@ -125,6 +178,60 @@ public final class RmapCodec {
             UnsafeAllocator.putField(instance, f, fieldValue);
         }
         return instance;
+    }
+
+    private Object decodeSequence(RmapByteReader in, Set<String> whitelist, ClassInterner interner,
+                                  RefTable refs, int depth, boolean asSet) {
+        checkDepth(depth);
+        int size = in.readInt();
+        if (size < 0) {
+            throw new RmapCodecException("negative collection size: " + size);
+        }
+        java.util.Collection<Object> coll = asSet ? new java.util.LinkedHashSet<>() : new java.util.ArrayList<>();
+        refs.readRegister(coll); // pre-order
+        for (int i = 0; i < size; i++) {  // НЕ пре-аллоцируем по size: буфер отвергнет лишнее
+            coll.add(decode(in, whitelist, interner, refs, depth + 1));
+        }
+        return coll;
+    }
+
+    private Object decodeMap(RmapByteReader in, Set<String> whitelist, ClassInterner interner,
+                             RefTable refs, int depth) {
+        checkDepth(depth);
+        int size = in.readInt();
+        if (size < 0) {
+            throw new RmapCodecException("negative map size: " + size);
+        }
+        java.util.Map<Object, Object> map = new java.util.LinkedHashMap<>();
+        refs.readRegister(map);
+        for (int i = 0; i < size; i++) {
+            Object k = decode(in, whitelist, interner, refs, depth + 1);
+            Object v = decode(in, whitelist, interner, refs, depth + 1);
+            map.put(k, v);
+        }
+        return map;
+    }
+
+    private Object decodeArray(RmapByteReader in, Set<String> whitelist, ClassInterner interner,
+                               RefTable refs, int depth) {
+        checkDepth(depth);
+        Class<?> component = interner.readClassRef(in, whitelist);
+        int len = in.readInt();
+        if (len < 0) {
+            throw new RmapCodecException("negative array length: " + len);
+        }
+        // Растим через список, потом копируем в типизированный массив (не пре-аллоцируем len).
+        java.util.List<Object> tmp = new java.util.ArrayList<>();
+        Object arr = java.lang.reflect.Array.newInstance(component, 0); // placeholder для регистрации
+        refs.readRegister(arr);
+        for (int i = 0; i < len; i++) {
+            tmp.add(decode(in, whitelist, interner, refs, depth + 1));
+        }
+        Object result = java.lang.reflect.Array.newInstance(component, tmp.size());
+        for (int i = 0; i < tmp.size(); i++) {
+            java.lang.reflect.Array.set(result, i, tmp.get(i));
+        }
+        return result;
     }
 
     private static void checkDepth(int depth) {
