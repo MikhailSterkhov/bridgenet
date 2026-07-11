@@ -18,7 +18,7 @@ function assembly_resources() {
   except_code
 }
 
-declare -a modules_queue=("assembly" "profiler" "api" "mtp" "jdbc" "rmi" "rest" "services" "bootstrap" "client" "testing")
+declare -a modules_queue=("assembly" "profiler" "api" "mtp" "jdbc" "rmi" "rest" "rmap" "services" "bootstrap" "client" "testing")
 
 for module in "${modules_queue[@]}"
 do

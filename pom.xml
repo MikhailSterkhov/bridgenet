@@ -21,6 +21,7 @@
         <module>client</module>
         <module>rest</module>
         <module>testing</module>
+        <module>rmap</module>
     </modules>
 
     <properties>
