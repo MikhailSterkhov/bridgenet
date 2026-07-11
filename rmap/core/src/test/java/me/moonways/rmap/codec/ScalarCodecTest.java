@@ -17,7 +17,7 @@ class ScalarCodecTest {
         RmapByteWriter w = new RmapByteWriter();
         codec.encode(w, v);
         byte[] b = w.toByteArray();
-        return codec.decode(new RmapByteReader(b, 0, b.length));
+        return codec.decode(new RmapByteReader(b, 0, b.length), null);
     }
 
     @Test
@@ -51,7 +51,7 @@ class ScalarCodecTest {
         codec.encode(w, data);
         byte[] wire = w.toByteArray();
         assertThat(wire[0] & 0xFF).isEqualTo(Tags.BYTES);
-        assertThat((byte[]) codec.decode(new RmapByteReader(wire, 0, wire.length))).containsExactly(data);
+        assertThat((byte[]) codec.decode(new RmapByteReader(wire, 0, wire.length), null)).containsExactly(data);
     }
 
     @Test
@@ -68,13 +68,14 @@ class ScalarCodecTest {
 
     @Test
     void invalid_enum_name_fails() {
-        // Кадр ENUM с валидным классом, но именем "MAGENTA", которого нет.
+        // Кадр ENUM с валидным классом (через classRef, задача 4), но именем "MAGENTA", которого нет.
         RmapByteWriter w = new RmapByteWriter();
         w.writeByte(Tags.ENUM);
-        w.writeStr(Color.class.getName());   // FQN (задача 3 — без интернирования)
+        ClassInterner ci = new ClassInterner();
+        ci.writeClassRef(w, Color.class);   // classRef-def: 0x00, str FQN (§5.2a)
         w.writeStr("MAGENTA");
         byte[] b = w.toByteArray();
-        assertThatThrownBy(() -> codec.decode(new RmapByteReader(b, 0, b.length)))
+        assertThatThrownBy(() -> codec.decode(new RmapByteReader(b, 0, b.length), null))
                 .isInstanceOf(RmapCodecException.class);
     }
 
