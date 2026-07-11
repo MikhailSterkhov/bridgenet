@@ -1,7 +1,5 @@
 package me.moonways.rmap.codec;
 
-import me.moonways.rmap.api.RmapSerializable;
-
 import java.lang.reflect.Field;
 import java.util.Set;
 import java.util.UUID;
@@ -15,6 +13,20 @@ import java.util.UUID;
 public final class RmapCodec {
 
     static final int MAX_DEPTH = 32; // спека §5.1
+
+    @FunctionalInterface interface TlvWriter { void write(Object value); }
+    @FunctionalInterface interface TlvReader { Object read(); }
+
+    private final CodecRegistry registry;
+
+    /** Дефолтный реестр: {@link CodecRegistry} с 4 встроенными кодеками платформенных типов. */
+    public RmapCodec() {
+        this(new CodecRegistry());
+    }
+
+    public RmapCodec(CodecRegistry registry) {
+        this.registry = registry;
+    }
 
     public void encode(RmapByteWriter out, Object value) {
         encode(out, value, new ClassInterner(), new RefTable(), 0);
@@ -60,8 +72,23 @@ public final class RmapCodec {
             out.writeStr(((Enum<?>) value).name());
             return;
         }
+        // приоритет резолва (спека §5.3): ValueCodec бьёт serializable/встроенный тег.
+        // Тип под ValueCodec — лист (в поля не спускаемся).
+        @SuppressWarnings("unchecked")
+        ValueCodec<Object> vc = (ValueCodec<Object>) registry.findCodec(c);
+        if (vc != null) {
+            out.writeByte(Tags.VALUE_CODEC);
+            interner.writeClassRef(out, c);
+            RmapByteWriter body = new RmapByteWriter();
+            TlvWriter nested = v -> encode(body, v, interner, refs, depth + 1);
+            vc.write(new RmapOutput(body, nested), value);
+            byte[] bodyBytes = body.toByteArray();
+            out.writeInt(bodyBytes.length);
+            out.writeRaw(bodyBytes);
+            return;
+        }
         // объекты (задача 4)
-        if (c.isAnnotationPresent(RmapSerializable.class)) {
+        if (registry.isSerializable(c)) {
             if (refBackRef(out, refs, value)) return;
             checkDepth(depth);
             out.writeByte(Tags.OBJECT);
@@ -148,6 +175,25 @@ public final class RmapCodec {
             case Tags.ENUM: return decodeEnum(in, whitelist, interner);
             case Tags.BACK_REF: return refs.readGet(in.readInt());
             case Tags.OBJECT: return decodeObject(in, whitelist, interner, refs, depth);
+            case Tags.VALUE_CODEC: {
+                Class<?> vcClass = interner.readClassRef(in, whitelist);
+                ValueCodec<?> codec = registry.findCodec(vcClass);
+                if (codec == null) {
+                    throw new RmapCodecException("no ValueCodec for " + vcClass.getName());
+                }
+                int len = in.readInt();
+                if (len < 0 || len > in.remaining()) {
+                    throw new RmapCodecException("bad value-codec length " + len);
+                }
+                int startPos = in.position();
+                TlvReader nested = () -> decode(in, whitelist, interner, refs, depth + 1);
+                Object v = codec.read(new RmapInput(in, nested));
+                if (in.position() - startPos != len) {
+                    throw new RmapCodecException("value-codec read " + (in.position() - startPos)
+                            + " bytes, framed " + len);
+                }
+                return v;
+            }
             case Tags.LIST: return decodeSequence(in, whitelist, interner, refs, depth, false);
             case Tags.SET: return decodeSequence(in, whitelist, interner, refs, depth, true);
             case Tags.MAP: return decodeMap(in, whitelist, interner, refs, depth);
