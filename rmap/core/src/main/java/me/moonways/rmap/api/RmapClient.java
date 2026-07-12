@@ -1,5 +1,14 @@
 package me.moonways.rmap.api;
 
+import me.moonways.rmap.codec.CodecRegistry;
+import me.moonways.rmap.codec.RmapCodec;
+import me.moonways.rmap.rpc.ClientSession;
+import me.moonways.rmap.rpc.ConnectionCodec;
+import me.moonways.rmap.rpc.ExportAudit;
+import me.moonways.rmap.rpc.ExportOptions;
+import me.moonways.rmap.rpc.InterfaceManifest;
+import me.moonways.rmap.rpc.RmapCallOptions;
+import me.moonways.rmap.rpc.RmapProxy;
 import me.moonways.rmap.transport.ConnectionListener;
 import me.moonways.rmap.transport.HandshakeCodec;
 import me.moonways.rmap.transport.HandshakeState;
@@ -10,10 +19,18 @@ import me.moonways.rmap.transport.RmapTransportException;
 import me.moonways.rmap.wire.Frame;
 import me.moonways.rmap.wire.FrameType;
 
+import java.lang.reflect.Proxy;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Клиентский эндпоинт RMAP: устанавливает соединение, проходит взаимный HMAC-handshake (§4.3),
@@ -28,6 +45,20 @@ public final class RmapClient {
 
     private final RmapConfig config;
     private final ScheduledExecutorService scheduler;
+    /** Завершение клиентских future — НЕ на decode/scheduler-потоке (§9): блокирующий continuation
+     *  юзера не стопорит ни serial-decode, ни keep-alive. */
+    private final ExecutorService callbackPool;
+    /** Делегат serial-decode DONE/OTHER (wire-порядок §5.2a); отдельный от callback-пула. */
+    private final ExecutorService decodeExecutor;
+    private final CodecRegistry codecRegistry = new CodecRegistry();
+    private final RmapCodec codec = new RmapCodec(codecRegistry);
+    /** Сессии по соединению; per-authenticated-connection (§7.2). */
+    private final Map<RmapConnection, ClientSession> sessions = new ConcurrentHashMap<>();
+    /** lookup-спеки (path → digest+whitelist аудита), переживают reconnect для сидирования новой сессии. */
+    private final Map<String, LookupSpec> registeredLookups = new ConcurrentHashMap<>();
+    private final AtomicInteger generationSeq = new AtomicInteger(0);
+    /** Текущая живая сессия для диспетчеризации прокси; обновляется на каждую новую аутентификацию. */
+    private volatile ClientSession session;
 
     private volatile NioTransport transport;
     private volatile RmapConnection current;
@@ -45,11 +76,17 @@ public final class RmapClient {
 
     RmapClient(RmapConfig config) {
         this.config = config;
-        this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "rmap-client-sched");
+        this.scheduler = Executors.newSingleThreadScheduledExecutor(daemonFactory("rmap-client-sched"));
+        this.callbackPool = Executors.newFixedThreadPool(2, daemonFactory("rmap-client-callback"));
+        this.decodeExecutor = Executors.newSingleThreadExecutor(daemonFactory("rmap-client-decode"));
+    }
+
+    private static ThreadFactory daemonFactory(String name) {
+        return r -> {
+            Thread t = new Thread(r, name);
             t.setDaemon(true);
             return t;
-        });
+        };
     }
 
     public void onAuthenticated(Runnable callback) {
@@ -127,6 +164,100 @@ public final class RmapClient {
         return c != null && c.isAuthenticated();
     }
 
+    /**
+     * JDK-прокси remote-интерфейса НЕМЕДЛЕННО (§7.1). Клиентский аудит {@link ExportAudit.Mode#CLIENT}
+     * валидирует параметры и собирает whitelist+digest (интерфейсы в позиции возврата не отвергаются —
+     * клиент не знает wrap-набор сервера). LOOKUP уходит лениво при первом вызове; subjectId кэшируется
+     * на сессию, после reconnect (новая сессия) LOOKUP повторяется.
+     */
+    public <T> T lookup(String path, Class<T> iface) {
+        InterfaceManifest manifest = ExportAudit.audit(iface, ExportOptions.defaults(), codecRegistry,
+                ExportAudit.Mode.CLIENT);
+        LookupSpec spec = new LookupSpec(manifest.getDigest(), manifest.getDecodeWhitelist());
+        registeredLookups.put(path, spec);
+        ClientSession s = session; // если сессия уже жива — расширяем её decode-whitelist немедленно
+        if (s != null) {
+            s.connCodec().addWhitelist(spec.whitelist);
+        }
+        RmapProxy handler = new RmapProxy(this, path, iface, manifest.getDigest(), null);
+        Object proxy = Proxy.newProxyInstance(iface.getClassLoader(), new Class<?>[]{iface}, handler);
+        return iface.cast(proxy);
+    }
+
+    /** View-прокси с переопределённым per-call deadline (§7.1): тот же handler-контракт, другой дефолт. */
+    @SuppressWarnings("unchecked")
+    public <T> T withOptions(T proxy, RmapCallOptions opts) {
+        RmapProxy handler = (RmapProxy) Proxy.getInvocationHandler(proxy);
+        RmapProxy view = handler.viewWith(opts);
+        Class<?> iface = handler.iface();
+        return (T) Proxy.newProxyInstance(iface.getClassLoader(), new Class<?>[]{iface}, view);
+    }
+
+    /** Живая аутентифицированная сессия для диспетчеризации прокси, либо {@code null}. */
+    public ClientSession liveSession() {
+        ClientSession s = session;
+        if (s == null) {
+            return null;
+        }
+        RmapConnection c = s.connection();
+        if (c.isClosed() || !c.isAuthenticated()) {
+            return null;
+        }
+        return s;
+    }
+
+    /** Дефолтный call-deadline в миллисекундах (§7.1, {@code RmapConfig.callTimeout}). */
+    public long callTimeoutMillis() {
+        return config.getCallTimeout().toMillis();
+    }
+
+    /**
+     * Атомарно и идемпотентно поднимает {@link ClientSession} для аутентифицированного соединения
+     * (§9: post-auth кадр может опередить onAuthenticated-коллбек). Сидирует decode-whitelist сессии
+     * объединением всех известных lookup-спеков; новая сессия — новый {@code generation}.
+     */
+    private ClientSession ensureSession(RmapConnection conn) {
+        ClientSession existing = sessions.get(conn);
+        if (existing != null) {
+            return existing;
+        }
+        synchronized (conn) {
+            ClientSession s = sessions.get(conn);
+            if (s != null) {
+                return s;
+            }
+            Set<String> union = new LinkedHashSet<>();
+            for (LookupSpec spec : registeredLookups.values()) {
+                union.addAll(spec.whitelist);
+            }
+            ConnectionCodec connCodec = new ConnectionCodec(codec, union);
+            s = new ClientSession(conn, connCodec, codec, callbackPool, decodeExecutor, scheduler,
+                    generationSeq.incrementAndGet());
+            sessions.put(conn, s);
+            this.session = s;
+            // §3(б)-аналог: соединение уже закрыто (onClosed опередил) — снять и fail-fast.
+            if (conn.isClosed()) {
+                sessions.remove(conn);
+                if (this.session == s) {
+                    this.session = null;
+                }
+                s.failAllPending(new RmapConnectionException("connection closed"));
+            }
+            return s;
+        }
+    }
+
+    /** lookup-спека: digest+decode-whitelist аудита; переживает reconnect для сидирования новой сессии. */
+    private static final class LookupSpec {
+        final long digest;
+        final Set<String> whitelist;
+
+        LookupSpec(long digest, Set<String> whitelist) {
+            this.digest = digest;
+            this.whitelist = whitelist;
+        }
+    }
+
     public void sendPing() {
         RmapConnection c = current;
         if (c != null && c.isAuthenticated()) {
@@ -145,6 +276,9 @@ public final class RmapClient {
         if (t != null) {
             t.stop();
         }
+        // call-слой: остановить decode/callback-пулы (pending уже fail-fast'ятся на onClosed).
+        decodeExecutor.shutdownNow();
+        callbackPool.shutdownNow();
     }
 
     private void keepAliveTick() {
@@ -179,6 +313,7 @@ public final class RmapClient {
         public void onOpened(RmapConnection conn) {
             HandshakeState hs = new HandshakeState(conn,
                     () -> {
+                        ensureSession(conn);                   // call-слой готов ДО завершения connect-future
                         everAuthenticated = true;              // сессия установлена (§4.4)
                         backoffMillis = RECONNECT_BASE_MILLIS; // успех → сброс backoff
                         CompletableFuture<Void> f = connectFuture;
@@ -213,13 +348,31 @@ public final class RmapClient {
                 hs.touchInbound();
             }
             if (conn.isAuthenticated()) {
-                if (frame.getType() == FrameType.PONG) {
-                    Runnable cb = onPongCallback;
-                    if (cb != null) {
-                        cb.run();
+                // §9: первый post-auth кадр может опередить onAuthenticated-коллбек — поднимаем
+                // сессию идемпотентно, чтобы DONE/OTHER/LOOKUP_ACK не потерялись.
+                ClientSession s = ensureSession(conn);
+                switch (frame.getType()) {
+                    case PONG: {
+                        Runnable cb = onPongCallback;
+                        if (cb != null) {
+                            cb.run();
+                        }
+                        break;
                     }
-                } else if (frame.getType() == FrameType.PING) {
-                    conn.send(new Frame(FrameType.PONG, 0L, frame.getPayload()));
+                    case PING:
+                        conn.send(new Frame(FrameType.PONG, 0L, frame.getPayload()));
+                        break;
+                    case LOOKUP_ACK:
+                        s.onLookupAck(frame); // без TLV → прямо на worker-потоке
+                        break;
+                    case DONE:
+                        s.onDone(frame);      // serial-decode
+                        break;
+                    case OTHER:
+                        s.onOther(frame);     // serial-decode
+                        break;
+                    default:
+                        break;                // прочие post-auth кадры игнорируем
                 }
             } else if (hs != null) {
                 hs.onFrame(conn, frame);
@@ -228,6 +381,14 @@ public final class RmapClient {
 
         @Override
         public void onClosed(RmapConnection conn, Throwable cause) {
+            // §7.2 fast-fail: ВСЕ pending этой сессии немедленно completeExceptionally + снятие таймеров.
+            ClientSession s = sessions.remove(conn);
+            if (s != null) {
+                s.failAllPending(new RmapConnectionException("connection closed", cause));
+                if (session == s) {
+                    session = null;
+                }
+            }
             if (userClosed) {
                 return;
             }

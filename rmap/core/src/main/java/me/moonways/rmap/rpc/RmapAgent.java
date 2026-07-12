@@ -15,8 +15,13 @@ import me.moonways.rmap.wire.OtherCode;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -221,9 +226,33 @@ public final class RmapAgent {
                 sendInternalError(call.callId, t); // серверный сбой invoke — без close
                 return;
             }
-            // успех: DONE(TLV результата); void → invoke вернул null → TLV NULL.
+            // §5/§7: агент распаковывает Optional/CompletableFuture-возврат по СИГНАТУРЕ метода —
+            // на провод едет распакованное значение (эти обёртки НЕ кодируются как значения).
+            Class<?> ret = call.method.getReturnType();
+            if (ret == CompletableFuture.class && result instanceof CompletableFuture) {
+                try {
+                    long remaining = call.deadlineAtMillis - System.currentTimeMillis();
+                    result = ((CompletableFuture<?>) result).get(Math.max(1L, remaining), TimeUnit.MILLISECONDS);
+                } catch (TimeoutException te) {
+                    sendOther(call.callId, OtherCode.TIMED_OUT, "async result deadline exceeded"); // без close
+                    return;
+                } catch (ExecutionException ee) {
+                    Throwable c = ee.getCause() != null ? ee.getCause() : ee;
+                    sendInternalError(call.callId, c); // приложение зафейлило future — без close
+                    return;
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    sendInternalError(call.callId, ie);
+                    return;
+                }
+            }
+            if (ret == Optional.class && result instanceof Optional) {
+                result = ((Optional<?>) result).orElse(null); // present → значение, empty → NULL
+            }
+            final Object encoded = result;
+            // успех: DONE(TLV результата); void/empty → TLV NULL.
             connCodec.encodeAndSend(conn, FrameType.DONE, call.callId,
-                    (out, ctx) -> codec.encode(out, result, ctx));
+                    (out, ctx) -> codec.encode(out, encoded, ctx));
         } finally {
             onCallFinished();
         }

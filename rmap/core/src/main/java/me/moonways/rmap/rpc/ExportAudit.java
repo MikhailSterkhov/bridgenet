@@ -43,10 +43,25 @@ public final class ExportAudit {
     private ExportAudit() {
     }
 
+    /**
+     * Сторона аудита. {@code SERVER} — экспорт: неизвестный интерфейсный тип в ЛЮБОЙ позиции (кроме
+     * wrap-списка возврата) — ошибка. {@code CLIENT} — {@code lookup}: клиент не знает wrap-набор
+     * сервера, поэтому неизвестный интерфейсный тип в позиции ВОЗВРАТА считается потенциальным
+     * remote-ref (кодируемым, попадает в whitelist), а в позиции ПАРАМЕТРА — по-прежнему ошибка.
+     */
+    public enum Mode { SERVER, CLIENT }
+
     /** Аудит интерфейса под экспорт на сервере (§8). Бросает {@link RmapExportException}, если хотя бы
      *  один не-исключённый метод непригоден для v1. */
     public static InterfaceManifest audit(Class<?> iface, ExportOptions opts, CodecRegistry registry) {
-        return new Walker(iface, opts, registry).run();
+        return audit(iface, opts, registry, Mode.SERVER);
+    }
+
+    /** Аудит с явным режимом (§8, §7.1). {@link Mode#SERVER} — серверное поведение (как перегрузка
+     *  выше); {@link Mode#CLIENT} — клиентский аудит {@code lookup}: собирает whitelist+digest и
+     *  валидирует параметры, но не отвергает неизвестный интерфейс в позиции возврата. */
+    public static InterfaceManifest audit(Class<?> iface, ExportOptions opts, CodecRegistry registry, Mode mode) {
+        return new Walker(iface, opts, registry, mode).run();
     }
 
     /** Рекурсивный обходчик графа типов интерфейса. Не потокобезопасен — экземпляр на один аудит. */
@@ -57,6 +72,7 @@ public final class ExportAudit {
         private final Class<?> iface;
         private final ExportOptions opts;
         private final CodecRegistry registry;
+        private final Mode mode;
 
         private final List<String> problems = new java.util.ArrayList<>();
         private final Set<String> whitelist = new LinkedHashSet<>();
@@ -67,10 +83,11 @@ public final class ExportAudit {
 
         private String currentMethod = "";
 
-        Walker(Class<?> iface, ExportOptions opts, CodecRegistry registry) {
+        Walker(Class<?> iface, ExportOptions opts, CodecRegistry registry, Mode mode) {
             this.iface = iface;
             this.opts = opts;
             this.registry = registry;
+            this.mode = mode;
         }
 
         InterfaceManifest run() {
@@ -237,6 +254,10 @@ public final class ExportAudit {
             if (cls.isInterface()) {
                 if (isFunctionalLike(cls)) {
                     addProblem("functional interface (callback) not encodable: " + cls.getName());
+                } else if (mode == Mode.CLIENT && returnPosition) {
+                    // §7.1: клиент не знает wrap-набор сервера — неизвестный интерфейс в позиции
+                    // возврата считаем потенциальным remote-ref (кодируемым), в whitelist.
+                    addWhitelistRef(cls);
                 } else {
                     addProblem("interface not encodable (not wrapped): " + cls.getName());
                 }
