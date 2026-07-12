@@ -9,6 +9,7 @@ import me.moonways.rmap.api.RmapTimeoutException;
 import me.moonways.rmap.api.RmapConnectionException;
 import me.moonways.rmap.transport.Access;
 import me.moonways.rmap.transport.RmapConfig;
+import me.moonways.rmap.transport.RmapTransportException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -16,6 +17,7 @@ import java.net.InetSocketAddress;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -112,6 +114,34 @@ class ClientProxyTest {
                 .isInstanceOf(RmapTimeoutException.class);
         assertThat(System.currentTimeMillis() - start).isLessThan(1500);
         // соединение живо после таймаута (поздний DONE отброшен молча)
+        assertThat(calc.add(1, 1)).isEqualTo(2);
+    }
+
+    @Test
+    void deadline_completes_even_when_cancel_send_throws() throws Exception {
+        // Регрессия (CRITICAL): под outbound-backpressure отправка CANCEL из onDeadline бросает
+        // RmapTransportException. Раньше CANCEL шёл ДО завершения future → бросок пропускал
+        // completeLater, callId уже снят из pending → sync-вызывающий на cf.get() (без таймаута)
+        // виснул НАВСЕГДА. После фикса: future завершается таймаутом ДО best-effort CANCEL, а
+        // провал CANCEL проглатывается — hang невозможен. Провал send инъектируем детерминированно.
+        Calc calc = connect();
+        ClientSession session = client.liveSession();
+        assertThat(session).isNotNull();
+        AtomicBoolean cancelAttempted = new AtomicBoolean(false);
+        session.setCancelSender(callId -> {
+            cancelAttempted.set(true);
+            throw new RmapTransportException("outbound limit exceeded"); // как RmapConnection.send под лимитом
+        });
+
+        Calc fast = client.withOptions(calc, RmapCallOptions.deadline(java.time.Duration.ofMillis(200)));
+        long start = System.currentTimeMillis();
+        assertThatThrownBy(() -> fast.slow(2000))
+                .isInstanceOf(RmapTimeoutException.class); // завершился, НЕ завис
+        assertThat(System.currentTimeMillis() - start)
+                .as("future завершён таймаутом задолго до server-sleep — не hang").isLessThan(1500);
+        assertThat(cancelAttempted.get())
+                .as("путь отправки CANCEL действительно исполнен и бросил").isTrue();
+        // провал CANCEL проглочен, соединение живо: обычный вызов работает.
         assertThat(calc.add(1, 1)).isEqualTo(2);
     }
 

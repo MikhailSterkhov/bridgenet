@@ -47,6 +47,8 @@ public final class ClientSession {
     private final ConcurrentHashMap<Long, LookupWait> pendingLookups = new ConcurrentHashMap<>();
     private final AtomicLong callIds = new AtomicLong(1L);
     private final AtomicLong droppedLate = new AtomicLong(0L);
+    // отправка CANCEL идёт через это семя (дефолт — реальный кадр, тест инъектирует провал); см. sendCancel.
+    private volatile CancelSender cancelSender;
 
     public ClientSession(RmapConnection conn, ConnectionCodec connCodec, RmapCodec codec,
                          Executor callbackPool, Executor decodeExecutor,
@@ -58,6 +60,7 @@ public final class ClientSession {
         this.decodeSerial = new SerialExecutor(decodeExecutor);
         this.scheduler = scheduler;
         this.generation = generation;
+        this.cancelSender = callId -> conn.send(new Frame(FrameType.CANCEL, callId, EMPTY));
     }
 
     public RmapConnection connection() {
@@ -101,6 +104,13 @@ public final class ClientSession {
             pending.remove(callId);
             cf.completeExceptionally(new RmapConnectionException("client scheduler stopped"));
             return cf;
+        }
+        // закрыть гонку put↔timer: если failAllPending забрал запись между pending.put и присвоением
+        // pc.timer, его cancelTimer видел timer==null (no-op) → таймер осиротел бы (самоистечёт, future
+        // уже завершён — не hang, но утечка scheduler-задачи). Перечитываем: записи нет ⇒ снимаем сами.
+        if (!pending.containsKey(callId)) {
+            cancelTimer(pc);
+            return cf; // future уже завершён failAllPending — RGET/LOOKUP не шлём
         }
         // fast-fail: соединение закрылось между live-check в прокси и регистрацией.
         if (conn.isClosed()) {
@@ -249,17 +259,25 @@ public final class ClientSession {
 
     // ---- завершение вызовов ------------------------------------------------------------------
 
-    /** Deadline истёк (§7.1): снять pending, отправить CANCEL с его callId, завершить future таймаутом. */
+    /** Deadline истёк (§7.1): снять pending, завершить future таймаутом, затем best-effort CANCEL. */
     private void onDeadline(long callId) {
         PendingCall pc = pending.remove(callId);
         if (pc == null) {
             return; // уже завершён (DONE/OTHER/closed/cancel)
         }
-        sendCancel(callId); // §4.2a: CANCEL несёт callId отменяемого вызова
+        // ПОРЯДОК КРИТИЧЕН: сначала завершаем future, ПОТОМ шлём CANCEL. Иначе провал send под
+        // outbound-backpressure (RmapTransportException, §RmapConnection.send) прошёл бы ДО
+        // completeLater → future не завершён, callId уже снят из pending (failAllPending не спасёт),
+        // sync-вызывающий на cf.get() (без таймаута) виснет НАВСЕГДА. sendCancel — best-effort.
         completeLater(pc.future, null, new RmapTimeoutException("call timed out after deadline"));
+        sendCancel(callId); // §4.2a: CANCEL несёт callId отменяемого вызова
     }
 
-    /** Пользователь отменил async-future ({@code cancel(true)}): снять pending+таймер, отправить CANCEL. */
+    /**
+     * Пользователь отменил async-future ({@code cancel(true)}): снять pending+таймер, best-effort CANCEL.
+     * Future УЖЕ отменён (super.cancel в {@link CallFuture#cancel} до этого вызова) — порядок «future
+     * завершён ПЕРЕД CANCEL» соблюдён; провал sendCancel не должен пробиться в {@code future.cancel(true)}.
+     */
     void onUserCancel(long callId) {
         PendingCall pc = pending.remove(callId);
         if (pc != null) {
@@ -320,8 +338,30 @@ public final class ClientSession {
         }
     }
 
+    /**
+     * Отправка CANCEL — <b>best-effort</b> уведомление сервера (§4.2a). Его провал (outbound-лимит →
+     * RmapTransportException, закрытие → молчаливый дроп) НЕ должен пробиться ни в scheduler-задачу
+     * {@link #onDeadline}, ни в пользовательский {@code future.cancel(true)}: вызов к этому моменту уже
+     * завершён локально таймаутом/отменой. Идёт через {@link #cancelSender}-семя (тест инъектирует провал).
+     */
     private void sendCancel(long callId) {
-        conn.send(new Frame(FrameType.CANCEL, callId, EMPTY)); // без TLV; закрытое соединение молча дропнет
+        try {
+            cancelSender.send(callId);
+        } catch (RuntimeException swallowed) {
+            // best-effort: провал CANCEL (outbound-лимит → RmapTransportException) не должен пробиться
+            // ни в scheduler-задачу onDeadline, ни в пользовательский future.cancel(true). Вызов уже
+            // завершён локально таймаутом/отменой; сервер снимет вызов сам по deadline либо разрыву.
+        }
+    }
+
+    // Семя отправки CANCEL: дефолт — реальный кадр без TLV (закрытое соединение молча дропнет);
+    // package-private сеттер позволяет юнит-тесту детерминированно смоделировать провал send().
+    interface CancelSender {
+        void send(long callId);
+    }
+
+    void setCancelSender(CancelSender sender) {
+        this.cancelSender = sender;
     }
 
     private static void cancelTimer(PendingCall pc) {
