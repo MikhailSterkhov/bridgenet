@@ -145,6 +145,22 @@ $ ./bridgenet help
 
 # Запуск и тестирование
 
+## Сборка и запуск в Docker
+
+Требуется только Docker (Compose v2) — образ самодостаточный: multi-stage Dockerfile
+собирает систему внутри контейнера тем же скриптом `bridgenet build` (JDK 21 + Maven 3.9),
+а рантайм работает на Java 8 (Temurin JRE).
+
+```shell
+$ docker compose up -d --build
+```
+
+- Порты: `6791` — протокол MTP, `4590` — REST API (внутри контейнера бинды
+  переведены на `0.0.0.0`, RMI остаётся на loopback — это внутрипроцессная связь).
+- Логи: `docker logs -f bridgenet`; файлы логов — в named volume `bridgenet-logs`.
+- Опции JVM: переменная `JAVA_OPTS` в `docker-compose.yml`.
+- Healthcheck: TCP-проба MTP-порта, контейнер переходит в `healthy` после полного старта.
+
 ## Локальный запуск
 
 Для запуска системы локально используется единственный класс, содержащий статический метод main(String[] args): me.moonways.bridgenet.bootstrap.AppStarter.

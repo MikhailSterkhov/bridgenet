@@ -1,0 +1,22 @@
+services:
+  bridgenet:
+    build: .
+    image: bridgenet-server:1.3
+    container_name: bridgenet
+    restart: unless-stopped
+    ports:
+      - "6791:6791"   # MTP protocol
+      - "4590:4590"   # REST API
+    environment:
+      JAVA_OPTS: "-Xms256m -Xmx1g"
+    volumes:
+      - bridgenet-logs:/opt/bridgenet/logs
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/6791"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+
+volumes:
+  bridgenet-logs:

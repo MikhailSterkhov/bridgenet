@@ -1,0 +1,27 @@
+# VCS / IDE
+.git
+.idea
+**/*.iml
+.vscode
+
+# Host build outputs — the image builds everything itself
+.build
+logs
+profiler-logs
+**/target
+services/endpoint/*/endpoint
+
+# Docs and assets are not needed to compile
+.docs
+.assets
+docs
+
+# macOS noise
+.DS_Store
+**/.DS_Store
+
+# Docker files themselves
+Dockerfile
+docker-compose.yml
+
+# NOTE: .repo, .mvn, .scripts and the bridgenet script MUST stay in the context.
