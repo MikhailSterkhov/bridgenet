@@ -3,12 +3,17 @@ package me.moonways.rmap.rpc;
 import me.moonways.rmap.api.RmapExcluded;
 import me.moonways.rmap.api.RmapExportException;
 import me.moonways.rmap.api.RmapSerializable;
+import me.moonways.rmap.api.Snapshot;
 import me.moonways.rmap.codec.CodecRegistry;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -186,5 +191,82 @@ class ExportAuditTest {
                 ExportOptions.builder().wrapReturnAsRemote(BadWrapped.class).build(), new CodecRegistry()))
                 .isInstanceOf(RmapExportException.class)
                 .hasMessageContaining("wrapped");
+    }
+
+    // ---- §8.2 (перечень): wrapped-тип допустим в generic-аргументе List/Set/Collection/Optional/CF,
+    //      но НЕ в Map. Map остаётся контейнером для НЕ-wrapped типов (Map<String,Dto> проходит). ----
+
+    interface MapWrappedValue { Map<String, Player> board(); }   // wrapped как Map-value возврата
+    interface MapWrappedKey { Map<Player, String> byPlayer(); }  // wrapped как Map-key возврата
+    interface MapPlainDto { Map<String, Dto> data(); }           // обычный Map — допустим
+
+    @Test
+    void wrapped_type_in_map_generic_argument_is_rejected_but_plain_map_allowed() {
+        ExportOptions opts = ExportOptions.builder().wrapReturnAsRemote(Player.class).build();
+        // wrapped-тип как значение Map — не в перечне §8.2 → ошибка аудита.
+        assertThatThrownBy(() -> ExportAudit.audit(MapWrappedValue.class, opts, new CodecRegistry()))
+                .isInstanceOf(RmapExportException.class).hasMessageContaining("Map generic argument");
+        // wrapped-тип как ключ Map — тоже ошибка.
+        assertThatThrownBy(() -> ExportAudit.audit(MapWrappedKey.class, opts, new CodecRegistry()))
+                .isInstanceOf(RmapExportException.class).hasMessageContaining("Map generic argument");
+        // обычный Map<String,Dto> в возврате остаётся допустимым (Map — контейнер НЕ-wrapped типов).
+        assertThatCode(() -> ExportAudit.audit(MapPlainDto.class, opts, new CodecRegistry()))
+                .doesNotThrowAnyException();
+    }
+
+    // ---- §8.7: @Snapshot требует wrapped-возврат (иначе снимок-семантика бессмысленна) ----------
+
+    interface SnapshotWithoutWrapped { @Snapshot Dto snap(UUID id); }   // возврат НЕ wrapped
+    interface SnapshotWithWrapped { @Snapshot Player snap(UUID id); }   // возврат wrapped
+
+    @Test
+    void snapshot_requires_wrapped_return_type() {
+        ExportOptions opts = ExportOptions.builder().wrapReturnAsRemote(Player.class).build();
+        // @Snapshot на методе без wrapped-возврата → ошибка export-аудита (SERVER-режим).
+        assertThatThrownBy(() -> ExportAudit.audit(SnapshotWithoutWrapped.class, opts, new CodecRegistry()))
+                .isInstanceOf(RmapExportException.class).hasMessageContaining("Snapshot");
+        // @Snapshot на методе с wrapped-возвратом → проходит (снимок by-value wrap-типа, §5.3/§10).
+        assertThatCode(() -> ExportAudit.audit(SnapshotWithWrapped.class, opts, new CodecRegistry()))
+                .doesNotThrowAnyException();
+    }
+
+    // ---- §8.4: резолв type-variable из ParameterizedType-позиции; резолвленный тип → whitelist ----
+
+    @RmapSerializable static class Comp { String text; }
+    @RmapSerializable static class Title<T> { T value; }          // поле T резолвится позицией
+    interface HasTitle { Title<Comp> title(); }                   // Title<Comp> → T читается как Comp
+
+    @Test
+    void type_variable_resolved_from_parameterized_position_and_whitelisted() {
+        InterfaceManifest m = ExportAudit.audit(HasTitle.class,
+                ExportOptions.defaults(), new CodecRegistry());
+        // аудит проходит: поле T класса Title резолвится из Title<Comp> в конкретный Comp.
+        // резолвленный тип попадает в decode-whitelist (иначе ответ с Comp внутри Title → CODEC_ERROR).
+        assertThat(m.getDecodeWhitelist())
+                .contains(Title.class.getName(), Comp.class.getName());
+    }
+
+    // ---- §8.6: детектор methodId-коллизий (первые 8 байт SHA-256(name+descriptor)) --------------
+
+    @Test
+    void method_ids_are_distinct_and_manifest_has_no_false_collision() {
+        // §8.6: run() детектит коллизию methodId по ключу MethodIds.methodId(method); при равном
+        // ключе двух РАЗНЫХ методов → RmapExportException. Естественную SHA-256-коллизию (как и два
+        // различных Method-объекта с одинаковой сигнатурой) построить нельзя — Java отвергает clash
+        // сигнатур на компиляции, а bridge-методы имеют РАЗНЫЙ эрейзнутый дескриптор. Поэтому
+        // проверяем корректность детектора без фиктивной коллизии: (а) детектор ключуется на methodId,
+        // который РАЗЛИЧЕН для различных методов; (б) валидный интерфейс не даёт ложной коллизии —
+        // methodsById несёт РОВНО столько записей, сколько контрактных методов, и его ключи совпадают
+        // с независимо посчитанными methodId (коллизия схлопнула бы записи / добавила бы проблему).
+        InterfaceManifest m = auditGood();
+        List<Method> contract = MethodIds.contractMethods(Good.class);
+        assertThat(m.getMethodsById()).hasSize(contract.size());
+
+        Set<Long> ids = new HashSet<>();
+        for (Method method : contract) {
+            assertThat(ids.add(MethodIds.methodId(method)))
+                    .as("methodId уникален на метод: " + method).isTrue();
+        }
+        assertThat(m.getMethodsById().keySet()).containsExactlyInAnyOrderElementsOf(ids);
     }
 }

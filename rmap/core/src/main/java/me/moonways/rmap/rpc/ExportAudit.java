@@ -206,7 +206,23 @@ public final class ExportAudit {
                         + " encodable only as top-level return type: " + raw.getName());
                 return;
             }
-            if (isPlainContainer(raw) || raw == Map.class) {
+            if (raw == Map.class) {
+                // §8 п.2 (перечень): wrapped remote-ref допустим как generic-аргумент ТОЛЬКО в
+                // List/Set/Collection/Optional/CompletableFuture — Map в перечне НЕТ. Map остаётся
+                // контейнером для НЕ-wrapped типов (Map<String,Dto>), но wrapped-тип как ключ/значение
+                // отвергаем понятной ошибкой (иначе энкодер отдал бы value рефом сверх буквы спеки,
+                // а зеркальный returnMentionsWrapped Map-путь wrapped-несущим НЕ считает — рассинхрон).
+                for (Type arg : args) {
+                    Class<?> argRaw = rawOf(resolve(arg, env));
+                    if (argRaw != null && opts.getWrapReturnAsRemote().contains(argRaw)) {
+                        addProblem("wrapped type in Map generic argument: " + argRaw.getName());
+                    } else {
+                        walkType(arg, returnPosition, env);
+                    }
+                }
+                return;
+            }
+            if (isPlainContainer(raw)) {
                 for (Type arg : args) {
                     walkType(arg, returnPosition, env);
                 }

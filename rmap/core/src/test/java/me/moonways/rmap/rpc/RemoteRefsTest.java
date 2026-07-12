@@ -3,6 +3,7 @@ package me.moonways.rmap.rpc;
 import me.moonways.rmap.api.RmapClient;
 import me.moonways.rmap.api.RmapNet;
 import me.moonways.rmap.api.RmapRefs;
+import me.moonways.rmap.api.RmapRemoteException;
 import me.moonways.rmap.api.RmapSerializable;
 import me.moonways.rmap.api.RmapServer;
 import me.moonways.rmap.api.RmapStaleRefException;
@@ -92,6 +93,35 @@ class RemoteRefsTest {
             return counters.computeIfAbsent(name, CounterImpl::new);
         }
         public int tagSubject(Tag tag) { return tag.label.length(); }
+    }
+
+    // ---- §10: значение, реализующее 2 wrap-интерфейса активного набора → ambiguity -------------
+
+    public interface Alpha { int a(); }
+    public interface Beta { int b(); }
+
+    /** Реализует ОБА wrap-интерфейса — при encode ответа remoteInterfaceFor найдёт 2 совпадения. */
+    public static class Ambidextrous implements Alpha, Beta {
+        public int a() { return 1; }
+        public int b() { return 2; }
+    }
+
+    public static class PureBeta implements Beta {
+        public int b() { return 7; }
+    }
+
+    /** Оба wrap-интерфейса встречаются в позициях возврата → оба попадают в манифестный wrap-набор
+     *  (активный на encode). {@code ambiguous()} отдаёт объект в ОБОИХ → remoteInterfaceFor неоднозначен. */
+    public interface AmbiHub {
+        Alpha ambiguous();  // impl реализует и Alpha, и Beta → ambiguity на encode
+        Beta other();       // затягивает Beta в манифестный wrap-набор
+        int ping();         // healthcheck: соединение живо после отклонённого вызова
+    }
+
+    public static class AmbiHubImpl implements AmbiHub {
+        public Alpha ambiguous() { return new Ambidextrous(); }
+        public Beta other() { return new PureBeta(); }
+        public int ping() { return 42; }
     }
 
     // ---- инфраструктура ---------------------------------------------------------------------
@@ -351,6 +381,30 @@ class RemoteRefsTest {
         assertThat(s2.connection().isClosed()).as("не затёрта мёртвым conn1").isFalse();
         // subject-вызов на свежей сессии проходит (session не null и не подменена).
         assertThat(hub.counter("fresh").increment()).isEqualTo(1);
+    }
+
+    @Test
+    void value_implementing_two_wrapped_interfaces_yields_remote_error_and_keeps_connection() throws Exception {
+        // §10 / RefContextImpl.remoteInterfaceFor: если возвращаемый объект реализует ДВА интерфейса
+        // активного wrap-набора — encode ответа бросает RmapCodecException «ambiguous remote interface».
+        // Путь на реальном loopback: encode DONE падает → sendResult ловит RuntimeException →
+        // OTHER(INTERNAL_ERROR) с EXCEPTION-TLV (БЕЗ close) → клиент видит RmapRemoteException, соединение живо.
+        RmapNet net = RmapNet.create();
+        server = net.newServer(cfg());
+        server.bind(new InetSocketAddress("127.0.0.1", 0));
+        server.put("Services").export("AmbiHub", AmbiHub.class, new AmbiHubImpl(),
+                ExportOptions.builder().wrapReturnAsRemote(Alpha.class).wrapReturnAsRemote(Beta.class).build());
+        server.start();
+        client = net.newClient(cfg());
+        client.connect("127.0.0.1", server.boundPort()).get(5, TimeUnit.SECONDS);
+        AmbiHub hub = client.lookup("Services/AmbiHub", AmbiHub.class);
+
+        assertThatThrownBy(hub::ambiguous)
+                .as("объект в 2 wrap-интерфейсах → ambiguous remote interface на сервере")
+                .isInstanceOf(RmapRemoteException.class)
+                .hasMessageContaining("ambiguous");
+        // соединение живо: последующий вызов на том же соединении проходит.
+        assertThat(hub.ping()).isEqualTo(42);
     }
 
     // ---- прямые unit-проверки ObjectTable (self-review a/б) ----------------------------------
