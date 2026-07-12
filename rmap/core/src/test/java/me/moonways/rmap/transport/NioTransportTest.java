@@ -1,12 +1,15 @@
 package me.moonways.rmap.transport;
 
+import me.moonways.rmap.codec.RmapByteReader;
 import me.moonways.rmap.wire.Frame;
 import me.moonways.rmap.wire.FrameType;
+import me.moonways.rmap.wire.OtherCode;
 import org.junit.jupiter.api.Test;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -56,25 +59,83 @@ class NioTransportTest {
 
     @Test
     void oversized_frame_is_rejected_and_connection_closed() throws Exception {
-        // сервер с крошечным frameLimit; клиент шлёт кадр больше лимита → сервер закрывает
+        // сервер с крошечным frameLimit; клиент шлёт кадр больше лимита → сервер шлёт
+        // OTHER(FRAME_TOO_LARGE) и закрывает. Клиент ДОЛЖЕН получить OTHER до/на закрытии
+        // (прямой лок Critical-фикса close-after-flush).
         RmapConfig tiny = RmapConfig.builder().access(Access.publicAccess())
                 .appVersion("t").clientName("c").frameLimit(64).preAuthFrameLimit(64).build();
-        CountDownLatch closed = new CountDownLatch(1);
+        CountDownLatch serverClosed = new CountDownLatch(1);
         ConnectionListener serverListener = new ConnectionListener() {
             public void onOpened(RmapConnection c) { }
             public void onFrame(RmapConnection c, Frame f) { }
-            public void onClosed(RmapConnection c, Throwable t) { closed.countDown(); }
+            public void onClosed(RmapConnection c, Throwable t) { serverClosed.countDown(); }
         };
         NioTransport server = NioTransport.startServer(new InetSocketAddress("127.0.0.1", 0), tiny, serverListener);
+
+        CountDownLatch otherReceived = new CountDownLatch(1);
+        CountDownLatch clientClosed = new CountDownLatch(1);
+        AtomicInteger otherCode = new AtomicInteger(-1);
+        AtomicReference<Boolean> otherSeenAtClose = new AtomicReference<>();
         NioTransport clientTransport = NioTransport.clientTransport(tiny);
         clientTransport.connect("127.0.0.1", server.boundPort(), tiny, new ConnectionListener() {
             public void onOpened(RmapConnection c) {
                 c.send(new Frame(FrameType.PING, 0L, new byte[200])); // > 64
             }
+            public void onFrame(RmapConnection c, Frame f) {
+                if (f.getType() == FrameType.OTHER) {
+                    otherCode.set(new RmapByteReader(f.getPayload(), 0, f.getPayload().length).readInt());
+                    otherReceived.countDown();
+                }
+            }
+            public void onClosed(RmapConnection c, Throwable t) {
+                // §9: onClosed может гоняться с in-flight onFrame — ждём кадр (грейс),
+                // как это делает строгая state-машина хендшейка. В успехе вернётся сразу.
+                try { otherSeenAtClose.set(otherReceived.await(3, TimeUnit.SECONDS)); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                clientClosed.countDown();
+            }
+        });
+
+        assertThat(otherReceived.await(10, TimeUnit.SECONDS))
+                .as("клиент получил OTHER-кадр от сервера").isTrue();
+        assertThat(otherCode.get()).as("код OTHER = FRAME_TOO_LARGE").isEqualTo(OtherCode.FRAME_TOO_LARGE);
+        assertThat(clientClosed.await(10, TimeUnit.SECONDS)).as("клиент закрыт").isTrue();
+        assertThat(otherSeenAtClose.get()).as("OTHER доставлен ДО onClosed").isTrue();
+        assertThat(serverClosed.await(10, TimeUnit.SECONDS)).as("сервер закрыл соединение").isTrue();
+
+        clientTransport.stop();
+        server.stop();
+    }
+
+    @Test
+    void double_close_delivers_onClosed_exactly_once() throws Exception {
+        // Два вызова close() (два queued doClose-task'а) → doClose идемпотентен → onClosed ровно раз.
+        AtomicInteger onClosedCount = new AtomicInteger(0);
+        CountDownLatch closedOnce = new CountDownLatch(1);
+        ConnectionListener serverListener = new ConnectionListener() {
+            public void onOpened(RmapConnection c) { }
             public void onFrame(RmapConnection c, Frame f) { }
             public void onClosed(RmapConnection c, Throwable t) { }
+        };
+        NioTransport server = NioTransport.startServer(new InetSocketAddress("127.0.0.1", 0), cfg(), serverListener);
+
+        NioTransport clientTransport = NioTransport.clientTransport(cfg());
+        clientTransport.connect("127.0.0.1", server.boundPort(), cfg(), new ConnectionListener() {
+            public void onOpened(RmapConnection c) {
+                c.close();
+                c.close(); // повторный close: второй doClose должен быть no-op
+            }
+            public void onFrame(RmapConnection c, Frame f) { }
+            public void onClosed(RmapConnection c, Throwable t) {
+                onClosedCount.incrementAndGet();
+                closedOnce.countDown();
+            }
         });
-        assertThat(closed.await(5, TimeUnit.SECONDS)).as("сервер закрыл соединение").isTrue();
+
+        assertThat(closedOnce.await(10, TimeUnit.SECONDS)).as("клиент получил onClosed").isTrue();
+        Thread.sleep(400); // дать возможному второму onClosed шанс прилететь
+        assertThat(onClosedCount.get()).as("onClosed ровно один раз").isEqualTo(1);
+
         clientTransport.stop();
         server.stop();
     }

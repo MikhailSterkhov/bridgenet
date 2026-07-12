@@ -30,6 +30,11 @@ public final class RmapConnection {
     private final AtomicBoolean writeScheduled = new AtomicBoolean(false);
     private final AtomicLong outboundBytes = new AtomicLong(0);
     private ByteBuffer currentWrite; // остаток недописанного, только selector
+    // graceful close: закрыть ПОСЛЕ полного слива outbound (доставка OTHER-кадра инициатору)
+    private final AtomicBoolean closeAfterFlush = new AtomicBoolean(false);
+    private volatile Throwable closeCause; // причина для onClosed при close-after-flush
+    // идемпотентность doClose: onClosed ровно один раз
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     @Getter @Setter private volatile boolean authenticated = false;
     @Getter @Setter private volatile Object attachment;
@@ -78,7 +83,8 @@ public final class RmapConnection {
     }
 
     public void close(int otherCode, String message) {
-        // отправить OTHER(callId=0) синхронно best-effort, затем закрыть
+        // спека §4.3/§4.2a: инициатор ошибки шлёт OTHER(callId=0) и закрывает ПОСЛЕ его отправки.
+        Throwable cause = new RmapTransportException("closed: code=" + otherCode + " " + message);
         try {
             me.moonways.rmap.codec.RmapByteWriter w = new me.moonways.rmap.codec.RmapByteWriter();
             w.writeInt(otherCode);
@@ -86,9 +92,12 @@ public final class RmapConnection {
             w.writeBool(false); // hasException=0
             send(new Frame(FrameType.OTHER, 0L, w.toByteArray()));
         } catch (RuntimeException ignored) {
-            // если send не прошёл — всё равно закрываем
+            // send не прошёл (backpressure/лимит) → закрываем сразу, без flush
+            transport.closeConnection(this, cause);
+            return;
         }
-        transport.closeConnection(this, new RmapTransportException("closed: code=" + otherCode + " " + message));
+        // OTHER поставлен в очередь — закрыть graceful ПОСЛЕ его слива в сокет
+        transport.closeAfterFlush(this, cause);
     }
 
     // ---- selector-поток: доступ к outbound ----
@@ -97,4 +106,10 @@ public final class RmapConnection {
     AtomicLong outboundBytes() { return outboundBytes; }
     ByteBuffer currentWrite() { return currentWrite; }
     void setCurrentWrite(ByteBuffer b) { this.currentWrite = b; }
+
+    // ---- graceful close / идемпотентность (доступ только с selector-потока) ----
+    AtomicBoolean closeAfterFlushFlag() { return closeAfterFlush; }
+    AtomicBoolean closedFlag() { return closed; }
+    Throwable closeCause() { return closeCause; }
+    void setCloseCause(Throwable t) { this.closeCause = t; }
 }

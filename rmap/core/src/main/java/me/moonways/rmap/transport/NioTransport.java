@@ -14,6 +14,7 @@ import java.util.Iterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Plain-NIO транспорт RMAP: 1 selector-поток (только I/O) + worker-pool (спека §9). */
@@ -102,7 +103,16 @@ public final class NioTransport {
         running.set(false);
         selector.wakeup();
         try { selectorThread.join(2000); } catch (InterruptedException ignored) { }
-        workers.shutdownNow();
+        // graceful: дать shutdown-фазе доставить teardown-onClosed, лишь потом форсить
+        workers.shutdown();
+        try {
+            if (!workers.awaitTermination(2, TimeUnit.SECONDS)) {
+                workers.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            workers.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
         try { selector.close(); } catch (IOException ignored) { }
         try { if (serverChannel != null) serverChannel.close(); } catch (IOException ignored) { }
     }
@@ -126,6 +136,21 @@ public final class NioTransport {
 
     void closeConnection(RmapConnection conn, Throwable cause) {
         runOnSelector(() -> doClose(conn, cause));
+    }
+
+    /** Graceful close: закрыть ПОСЛЕ полного слива outbound (доставка OTHER-кадра инициатору). */
+    void closeAfterFlush(RmapConnection conn, Throwable cause) {
+        runOnSelector(() -> {
+            SelectionKey k = conn.getKeyInternal();
+            if (k == null || !k.isValid() || !conn.channel().isConnected()) {
+                // канал ещё/уже не пригоден для записи → закрыть сразу (кадр не уйдёт)
+                doClose(conn, cause);
+                return;
+            }
+            conn.setCloseCause(cause);
+            conn.closeAfterFlushFlag().set(true);
+            k.interestOps(k.interestOps() | SelectionKey.OP_WRITE);
+        });
     }
 
     private void runOnSelector(Runnable task) {
@@ -248,7 +273,13 @@ public final class NioTransport {
             if (cur == null || !cur.hasRemaining()) {
                 byte[] next = conn.outbound().poll();
                 if (next == null) {
-                    // очередь пуста — снять OP_WRITE
+                    // очередь пуста и currentWrite дренирован — всё отправлено.
+                    // graceful close: если запрошен close-after-flush, закрываем именно здесь.
+                    if (conn.closeAfterFlushFlag().get()) {
+                        doClose(conn, conn.closeCause());
+                        return;
+                    }
+                    // снять OP_WRITE
                     k.interestOps(k.interestOps() & ~SelectionKey.OP_WRITE);
                     conn.writeScheduled().set(false);
                     // повторная проверка гонки: если между poll и set кто-то добавил
@@ -267,6 +298,9 @@ public final class NioTransport {
     }
 
     private void doClose(RmapConnection conn, Throwable cause) {
+        // идемпотентность: onClosed ровно один раз, даже если doClose пришёл двумя путями
+        // (например conn.close() + параллельный FIN/ошибка на selector-потоке).
+        if (!conn.closedFlag().compareAndSet(false, true)) return;
         SelectionKey k = conn.getKeyInternal();
         if (k != null) k.cancel();
         try { conn.channel().close(); } catch (IOException ignored) { }
