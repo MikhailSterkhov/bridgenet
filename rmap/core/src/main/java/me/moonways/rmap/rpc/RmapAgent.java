@@ -23,12 +23,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Серверный обработчик post-auth кадров ОДНОГО соединения (§7, §9). Живёт per-connection.
@@ -50,8 +52,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * RGET ({@code subjectId=-1}) адресует запись по refId, {@code REF_RELEASE} освобождает. Манифесты
  * ref-интерфейсов считаются лениво и кэшируются. Разрыв → {@link ObjectTable#clear()}.
  *
- * <p><b>Инвариант in-flight (§9).</b> Счётчик инкрементится РОВНО раз на постановку вызова
- * (enqueue) и декрементится РОВНО раз в {@code finally} задачи исполнения.
+ * <p><b>Инвариант in-flight (§9, {@link FlowController}).</b> Счётчик инкрементится РОВНО раз на
+ * постановку вызова (enqueue) и декрементится РОВНО раз при завершении: для sync-возврата — в
+ * {@code finally} задачи исполнения; для {@code CompletableFuture}-возврата — при завершении future
+ * либо истечении дедлайна (атомарная защёлка «ответ отправлен один раз»), т.е. НЕ на invoke-потоке.
  */
 public final class RmapAgent {
 
@@ -66,12 +70,17 @@ public final class RmapAgent {
     /** per-subject serial-dispatch executors (server-global, общий invoke-пул). */
     private final Map<Integer, SerialExecutor> subjectSerial;
     private final NioTransport transport;
+    /** Общий scheduler сервера (§9) — deadline-таймеры async-CF-возвратов (финревью-фикс A/I1). */
+    private final ScheduledExecutorService scheduler;
     private final RmapConfig config;
     private final RmapMetrics metrics;
 
     private final SerialExecutor decodeSerial;
     private final ConcurrentHashMap<Long, QueuedCall> queued = new ConcurrentHashMap<>();
-    private final AtomicInteger inFlight = new AtomicInteger(0);
+    /** Per-connection input flow-control (§9): инкремент/декремент in-flight и решение pause/resume
+     *  OP_READ — атомарно под общим монитором, чтобы порядок постановки pause/resume-задач в FIFO
+     *  селектора соответствовал порядку изменения счётчика (финревью-фикс A/C1). */
+    private final FlowController flow;
 
     // remote-refs (§10)
     private final ObjectTable objectTable;
@@ -82,7 +91,7 @@ public final class RmapAgent {
     public RmapAgent(RmapConnection conn, ConnectionCodec connCodec, RmapCodec codec,
                      CodecRegistry codecRegistry, SubjectRegistry registry, Executor invokePool,
                      Map<Integer, SerialExecutor> subjectSerial, NioTransport transport,
-                     RmapConfig config, RmapMetrics metrics) {
+                     ScheduledExecutorService scheduler, RmapConfig config, RmapMetrics metrics) {
         this.conn = conn;
         this.connCodec = connCodec;
         this.codec = codec;
@@ -91,8 +100,13 @@ public final class RmapAgent {
         this.invokePool = invokePool;
         this.subjectSerial = subjectSerial;
         this.transport = transport;
+        this.scheduler = scheduler;
         this.config = config;
         this.metrics = metrics != null ? metrics : RmapMetrics.NO_OP;
+        this.flow = new FlowController(config.getMaxInFlightRequests(), new FlowController.Signal() {
+            public void pauseReads() { transport.pauseReads(conn); }   // §9 input flow-control
+            public void resumeReads() { transport.resumeReads(conn); } // упали ниже лимита → снова читаем RGET
+        });
         this.decodeSerial = new SerialExecutor(invokePool);
         this.objectTable = new ObjectTable(config.getRefLeaseTimeout().toMillis());
         this.refContext = new RefContextImpl(objectTable);
@@ -332,15 +346,13 @@ public final class RmapAgent {
     private void enqueueAndSubmit(QueuedCall call) {
         queued.put(call.callId, call);
         metrics.callStarted();
-        int n = inFlight.incrementAndGet();
-        if (n >= config.getMaxInFlightRequests()) {
-            transport.pauseReads(conn); // §9: input flow-control
-        }
-        call.executor.execute(() -> runCall(call));
+        flow.onEnqueue(); // §9/финревью-фикс A(C1): инкремент in-flight + возможный pauseReads под локом
+        call.executor.execute(() -> runCall(call)); // invoke — ВНЕ лока, исполнение не сериализуется
     }
 
     private void runCall(QueuedCall call) {
         boolean success = false;
+        boolean asyncPending = false;
         try {
             if (queued.remove(call.callId) == null) {
                 return; // снят CANCEL'ом до старта / очищен onClosed — invoke пропускаем.
@@ -364,55 +376,104 @@ public final class RmapAgent {
             // на провод едет распакованное значение (эти обёртки НЕ кодируются как значения).
             Class<?> ret = call.method.getReturnType();
             if (ret == CompletableFuture.class && result instanceof CompletableFuture) {
-                try {
-                    long remaining = call.deadlineAtMillis - System.currentTimeMillis();
-                    result = ((CompletableFuture<?>) result).get(Math.max(1L, remaining), TimeUnit.MILLISECONDS);
-                } catch (TimeoutException te) {
-                    sendOther(call.callId, OtherCode.TIMED_OUT, "async result deadline exceeded"); // без close
-                    return;
-                } catch (ExecutionException ee) {
-                    Throwable c = ee.getCause() != null ? ee.getCause() : ee;
-                    sendInternalError(call.callId, c); // приложение зафейлило future — без close
-                    return;
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    sendInternalError(call.callId, ie);
-                    return;
-                }
+                // §9/финревью-фикс A(I1): НЕ блокируем invoke-поток на future.get() — блокирующий get
+                // морил бы ВЕСЬ invokePool (и вместе с ним serial-decode всех соединений) под N медленными
+                // CF-вызовами; CF, завершаемый ДРУГИМ RMAP-вызовом на том же пуле, давал бы циклический
+                // дедлок. Подписываемся неблокирующе (whenComplete) + deadline-таймер на scheduler'е;
+                // in-flight декремент (flow-control C1) и ответ — РОВНО раз. async-путь владеет finish.
+                asyncPending = true;
+                completeFromFuture(call, (CompletableFuture<?>) result);
+                return;
             }
             if (ret == Optional.class && result instanceof Optional) {
                 result = ((Optional<?>) result).orElse(null); // present → значение, empty → NULL
             }
-            final Object encoded = result;
-            // §10: @Snapshot-метод кодирует корень значением (даже wrap-тип), вложенные ref-поля — рефами.
-            final Object snapshotRoot = call.snapshot ? encoded : null;
-            // успех: DONE(TLV результата); void/empty → TLV NULL. Долг-фикс задачи 3: encode результата
-            // может бросить RmapCodecException (полиморфный подтип мимо аудита) — тогда интернер откачен
-            // (ConnectionCodec) и мы отвечаем internal-error (EXCEPTION-TLV интернер не трогает), а не
-            // тихо роняем ответ. Долг-фикс задачи 5 (задача 6): ПОЛЬЗОВАТЕЛЬСКИЙ ValueCodec.write (§5.3,
-            // задача 6) может бросить ЛЮБОЙ RuntimeException, не только RmapCodecException — узкий catch
-            // пропускал его мимо этого блока, клиент не получал ни DONE, ни OTHER и висел до deadline.
-            // ConnectionCodec.encodeAndSend уже откатывает write-интернер на ЛЮБОЙ RuntimeException
-            // (см. его javadoc) — здесь достаточно расширить catch, интернер остаётся цел.
-            try {
-                connCodec.encodeAndSend(conn, FrameType.DONE, call.callId,
-                        call.wrapSet, snapshotRoot, call.parentOpts,
-                        (out, ctx) -> codec.encode(out, encoded, ctx));
-                success = true;
-            } catch (RuntimeException e) {
-                sendInternalError(call.callId, e);
-            }
+            success = sendResult(call, result);
         } finally {
-            onCallFinished();
-            metrics.callCompleted(success);
+            if (!asyncPending) { // async-путь снимет in-flight при завершении future/дедлайне (finishAsync)
+                onCallFinished();
+                metrics.callCompleted(success);
+            }
         }
     }
 
-    private void onCallFinished() {
-        int n = inFlight.decrementAndGet();
-        if (n == config.getMaxInFlightRequests() - 1) {
-            transport.resumeReads(conn); // упали ниже лимита → снова читаем RGET (§9)
+    /**
+     * Кодирует и шлёт DONE(результат); возврат — успех (для метрики). {@code void}/empty Optional → TLV NULL.
+     *
+     * <p>Долг-фикс задачи 3: encode результата может бросить {@link RmapCodecException} (полиморфный подтип
+     * мимо аудита) — тогда write-интернер откачен (ConnectionCodec) и мы отвечаем internal-error (EXCEPTION-
+     * TLV интернер не трогает), а не тихо роняем ответ. Долг-фикс задачи 6: ПОЛЬЗОВАТЕЛЬСКИЙ ValueCodec.write
+     * (§5.3) может бросить ЛЮБОЙ RuntimeException, не только RmapCodecException — узкий catch пропускал бы его,
+     * клиент не получал бы ни DONE, ни OTHER и висел бы до deadline. ConnectionCodec.encodeAndSend откатывает
+     * write-интернер на ЛЮБОЙ RuntimeException — здесь достаточно широкого catch, интернер остаётся цел.
+     */
+    private boolean sendResult(QueuedCall call, Object result) {
+        final Object encoded = result;
+        // §10: @Snapshot-метод кодирует корень значением (даже wrap-тип), вложенные ref-поля — рефами.
+        final Object snapshotRoot = call.snapshot ? encoded : null;
+        try {
+            connCodec.encodeAndSend(conn, FrameType.DONE, call.callId,
+                    call.wrapSet, snapshotRoot, call.parentOpts,
+                    (out, ctx) -> codec.encode(out, encoded, ctx));
+            return true;
+        } catch (RuntimeException e) {
+            sendInternalError(call.callId, e);
+            return false;
         }
+    }
+
+    /**
+     * Неблокирующая распаковка {@code CompletableFuture}-возврата (§9/финревью-фикс A/I1). Подписка через
+     * {@code whenComplete} (ответ DONE либо internal-error) + deadline-таймер на общем scheduler'е (ответ
+     * OTHER TIMED_OUT). Гонка whenComplete↔таймер разрешается атомарной защёлкой {@code answered} — ответ
+     * И завершение вызова (in-flight декремент для flow-control §9) происходят РОВНО раз. Оба пути
+     * потокобезопасны: {@code encodeAndSend} под write-локом, {@code onCallFinished} под локом {@link FlowController}.
+     */
+    private void completeFromFuture(QueuedCall call, CompletableFuture<?> cf) {
+        AtomicBoolean answered = new AtomicBoolean(false);
+        ScheduledFuture<?> timer;
+        try {
+            long delay = Math.max(1L, call.deadlineAtMillis - System.currentTimeMillis());
+            timer = scheduler.schedule(() -> {
+                if (answered.compareAndSet(false, true)) {
+                    sendOther(call.callId, OtherCode.TIMED_OUT, "async result deadline exceeded"); // без close
+                    finishAsync(false);
+                }
+            }, delay, TimeUnit.MILLISECONDS);
+        } catch (RejectedExecutionException rej) {
+            timer = null; // scheduler остановлен (сервер закрывается) — дедлайн не взводим
+        }
+        final ScheduledFuture<?> deadlineTimer = timer;
+        cf.whenComplete((value, err) -> {
+            if (!answered.compareAndSet(false, true)) {
+                return; // deadline-таймер уже ответил TIMED_OUT и снял in-flight
+            }
+            if (deadlineTimer != null) {
+                deadlineTimer.cancel(false);
+            }
+            boolean ok = false;
+            if (err != null) {
+                Throwable cause = err instanceof CompletionException && err.getCause() != null
+                        ? err.getCause() : err;
+                sendInternalError(call.callId, cause); // приложение зафейлило future — без close
+            } else {
+                ok = sendResult(call, value);
+            }
+            finishAsync(ok);
+        });
+    }
+
+    /** Завершение async-CF-вызова: in-flight декремент (flow-control §9) + метрика — вызывается РОВНО раз
+     *  (защёлка {@code answered} в {@link #completeFromFuture}). */
+    private void finishAsync(boolean success) {
+        onCallFinished();
+        metrics.callCompleted(success);
+    }
+
+    private void onCallFinished() {
+        // §9/финревью-фикс A(C1): декремент in-flight + возможный resumeReads под локом (симметрично
+        // enqueueAndSubmit). Вызывается РОВНО раз на вызов (sync-finally / finishAsync / deadline-таймер).
+        flow.onFinish();
     }
 
     // ---- CANCEL (§7.1) ----

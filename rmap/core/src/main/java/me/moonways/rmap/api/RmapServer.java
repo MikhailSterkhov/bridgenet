@@ -287,7 +287,7 @@ public final class RmapServer {
             ConnectionCodec connCodec = new ConnectionCodec(codec, unionWhitelist,
                     config.getMaxInternedClasses(), metrics);
             agent = new RmapAgent(conn, connCodec, codec, codecRegistry, registry, invokePool, subjectSerial,
-                    transport, config, metrics);
+                    transport, scheduler, config, metrics);
             agents.put(conn, agent);
             // §3(б)-аналог: если соединение уже закрыто, снимаем — onClosed мог пройти до put.
             if (conn.isClosed()) {
