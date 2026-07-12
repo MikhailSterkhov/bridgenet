@@ -260,6 +260,11 @@ public final class HandshakeState {
         state = State.AUTHENTICATED;
         connection.setAuthenticated(true);
         connection.setFrameLimitFull();
+        // §4.3: соединение вышло из pre-auth — освобождаем слот отбойника (per-IP слот держим до close).
+        // Только серверные соединения учтены в отбойнике; для клиентских — no-op (guard в транспорте).
+        if (serverSide) {
+            connection.releasePreAuthSlot();
+        }
         LOG.info("auth success (" + (serverSide ? "server" : "client") + ") " + connection.remoteAddress());
         // §5: user-коллбек выполняем СНАРУЖИ монитора (см. onFrame).
         pendingUserCallback = onAuthenticated;

@@ -52,6 +52,15 @@ public final class RmapConnection {
     @Getter @Setter private volatile Object attachment;
     private volatile int frameLimit; // текущий предел (preAuth → full после auth)
 
+    // §4.3 pre-auth DoS-отбойник: серверные (принятые doAccept) соединения учтены в счётчиках
+    // транспорта. bouncerCounted помечается на accept; bouncerRemoteIp фиксируется тогда же
+    // (getRemoteAddress после close вернул бы null, а per-IP декремент нужен именно на close).
+    // preAuthReleased — CAS-защёлка «pre-auth-слот уже освобождён»: декремент ровно один раз,
+    // кто бы ни пришёл первым — auth-успех (markAuthenticated) или close (doClose).
+    private volatile boolean bouncerCounted = false;
+    private volatile java.net.InetAddress bouncerRemoteIp;
+    private final AtomicBoolean preAuthReleased = new AtomicBoolean(false);
+
     RmapConnection(NioTransport transport, SocketChannel channel, boolean serverSide, RmapConfig config) {
         this.transport = transport;
         this.channel = channel;
@@ -147,6 +156,21 @@ public final class RmapConnection {
     AtomicLong outboundBytes() { return outboundBytes; }
     ByteBuffer currentWrite() { return currentWrite; }
     void setCurrentWrite(ByteBuffer b) { this.currentWrite = b; }
+
+    // ---- §4.3 pre-auth DoS-отбойник (метки ставит doAccept на selector-потоке) ----
+    void markBouncerCounted(java.net.InetAddress ip) {
+        this.bouncerRemoteIp = ip;
+        this.bouncerCounted = true;
+    }
+    boolean isBouncerCounted() { return bouncerCounted; }
+    java.net.InetAddress bouncerRemoteIp() { return bouncerRemoteIp; }
+    AtomicBoolean preAuthReleasedFlag() { return preAuthReleased; }
+
+    /** Освободить pre-auth-слот отбойника на auth-успехе (§4.3). Идемпотентно (CAS в транспорте);
+     *  no-op для клиентских/неучтённых соединений. Вызывается {@link HandshakeState#markAuthenticated}. */
+    void releasePreAuthSlot() {
+        transport.releasePreAuthSlot(this);
+    }
 
     // ---- graceful close / идемпотентность (доступ только с selector-потока) ----
     AtomicBoolean closeAfterFlushFlag() { return closeAfterFlush; }

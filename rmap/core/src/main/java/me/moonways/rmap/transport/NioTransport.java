@@ -36,6 +36,14 @@ public final class NioTransport {
     private volatile int boundPort = -1;
     private final Thread selectorThread;
 
+    // §4.3 pre-auth DoS-отбойник. Мутируются ТОЛЬКО на selector-потоке (doAccept инкрементит,
+    // doClose/releasePreAuthSlot декрементят), поэтому compound-операции над картой безопасны без
+    // внешней синхронизации. Атомик/ConcurrentHashMap — ради безопасного чтения из тест-/иных потоков.
+    private final java.util.concurrent.atomic.AtomicInteger preAuthCount =
+            new java.util.concurrent.atomic.AtomicInteger(0);
+    private final java.util.concurrent.ConcurrentHashMap<java.net.InetAddress, Integer> perRemoteConnections =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     private NioTransport() {
         try {
             this.selector = Selector.open();
@@ -270,10 +278,27 @@ public final class NioTransport {
             sc = serverChannel.accept();
             if (sc == null) return;
             sc.configureBlocking(false);
+            java.net.InetAddress remoteIp = remoteIpOf(sc);
+            // §4.3 pre-auth DoS-отбойник: слишком много одновременных handshake ИЛИ соединений с одного
+            // IP → закрываем принятый канал НЕМЕДЛЕННО, без OTHER (отбойник на accept). Счётчики и проверка
+            // — на selector-потоке, поэтому консистентны без блокировок.
+            int perIp = remoteIp == null ? 0 : perRemoteConnections.getOrDefault(remoteIp, 0);
+            if (preAuthCount.get() >= serverConfig.getMaxConcurrentHandshakes()
+                    || perIp >= serverConfig.getMaxConnectionsPerRemote()) {
+                try { sc.close(); } catch (IOException ignored) { }
+                return;
+            }
             RmapConnection conn = new RmapConnection(this, sc, true, serverConfig);
             SelectionKey k = sc.register(selector, SelectionKey.OP_READ, new Attach(conn, serverListener, serverConfig));
             conn.setKey(k);
             conn.setListenerInternal(serverListener); // §2(b): listener доступен doClose сразу
+            // §4.3: учитываем соединение в счётчиках ПОСЛЕ успешной регистрации — теперь его doClose
+            // гарантирован и декремент состоится (при провале register ниже счётчики не тронуты).
+            preAuthCount.incrementAndGet();
+            if (remoteIp != null) {
+                perRemoteConnections.merge(remoteIp, 1, Integer::sum);
+            }
+            conn.markBouncerCounted(remoteIp);
             deliverOpened(conn, serverListener);
         } catch (IOException e) {
             if (sc != null) {
@@ -429,6 +454,7 @@ public final class NioTransport {
         // идемпотентность: onClosed ровно один раз, даже если doClose пришёл двумя путями
         // (например conn.close() + параллельный FIN/ошибка на selector-потоке).
         if (!conn.closedFlag().compareAndSet(false, true)) return;
+        releaseBouncerSlots(conn); // §4.3: снять слоты отбойника (pre-auth ровно раз, per-IP ровно раз)
         pendingClose.remove(conn); // §4: снять из реестра дедлайнов (если был взведён)
         SelectionKey k = conn.getKeyInternal();
         if (k != null) k.cancel();
@@ -444,6 +470,56 @@ public final class NioTransport {
                 try { l.onClosed(conn, cause); } catch (RuntimeException ignored) { }
             });
         }
+    }
+
+    /**
+     * §4.3: освободить pre-auth-слот отбойника на auth-успехе. Гоняется с {@link #doClose} того же
+     * соединения — CAS-защёлка {@code preAuthReleased} гарантирует РОВНО ОДИН декремент pre-auth.
+     * Выполняется на selector-потоке (единственный писатель счётчиков). No-op для клиентских/
+     * неучтённых соединений. Вызывается с worker-потока (markAuthenticated) → через очередь селектора.
+     */
+    void releasePreAuthSlot(RmapConnection conn) {
+        runOnSelector(() -> {
+            if (conn.isBouncerCounted() && conn.preAuthReleasedFlag().compareAndSet(false, true)) {
+                preAuthCount.decrementAndGet();
+            }
+        });
+    }
+
+    /** §4.3: на close снять слоты отбойника. pre-auth — через ту же CAS-защёлку (мог уже освободиться
+     *  на auth-успехе); per-IP — ровно раз (гейт closedFlag в {@link #doClose} выше по стеку).
+     *  Только selector-поток. */
+    private void releaseBouncerSlots(RmapConnection conn) {
+        if (!conn.isBouncerCounted()) {
+            return;
+        }
+        if (conn.preAuthReleasedFlag().compareAndSet(false, true)) {
+            preAuthCount.decrementAndGet();
+        }
+        java.net.InetAddress ip = conn.bouncerRemoteIp();
+        if (ip != null) {
+            perRemoteConnections.compute(ip, (k, v) -> (v == null || v <= 1) ? null : v - 1);
+        }
+    }
+
+    private static java.net.InetAddress remoteIpOf(SocketChannel sc) {
+        try {
+            java.net.SocketAddress addr = sc.getRemoteAddress();
+            return (addr instanceof InetSocketAddress) ? ((InetSocketAddress) addr).getAddress() : null;
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    /** §4.3 интроспекция для тестов/метрик: число соединений в состоянии pre-auth (отбойник §4.3). */
+    public int preAuthConnectionCount() {
+        return preAuthCount.get();
+    }
+
+    /** §4.3 интроспекция для тестов/метрик: число живых соединений с данного удалённого IP. */
+    public int connectionsFromRemote(java.net.InetAddress ip) {
+        Integer c = perRemoteConnections.get(ip);
+        return c == null ? 0 : c;
     }
 
     private void deliverOpened(RmapConnection conn, ConnectionListener listener) {

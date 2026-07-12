@@ -117,6 +117,18 @@ public final class RmapServer {
         return t == null ? -1 : t.boundPort();
     }
 
+    /** §4.3 интроспекция для тестов/метрик: число соединений в состоянии pre-auth (отбойник). */
+    public int preAuthConnectionCount() {
+        NioTransport t = transport;
+        return t == null ? 0 : t.preAuthConnectionCount();
+    }
+
+    /** §4.3 интроспекция для тестов/метрик: число живых соединений с данного удалённого IP. */
+    public int connectionsFromRemote(java.net.InetAddress ip) {
+        NioTransport t = transport;
+        return t == null ? 0 : t.connectionsFromRemote(ip);
+    }
+
     public void stop() {
         scheduler.shutdownNow();
         invokePool.shutdownNow();
