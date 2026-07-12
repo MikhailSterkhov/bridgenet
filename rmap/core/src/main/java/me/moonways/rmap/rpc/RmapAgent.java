@@ -447,8 +447,11 @@ public final class RmapAgent {
             long delay = Math.max(1L, call.deadlineAtMillis - System.currentTimeMillis());
             timer = scheduler.schedule(() -> {
                 if (answered.compareAndSet(false, true)) {
-                    sendOther(call.callId, OtherCode.TIMED_OUT, "async result deadline exceeded"); // без close
-                    finishAsync(false);
+                    try {
+                        sendOther(call.callId, OtherCode.TIMED_OUT, "async result deadline exceeded"); // без close
+                    } finally {
+                        finishAsync(false); // in-flight снять даже если send бросил (outbound-overflow §9) — иначе слот течёт
+                    }
                 }
             }, delay, TimeUnit.MILLISECONDS);
         } catch (RejectedExecutionException rej) {
@@ -463,14 +466,17 @@ public final class RmapAgent {
                 deadlineTimer.cancel(false);
             }
             boolean ok = false;
-            if (err != null) {
-                Throwable cause = err instanceof CompletionException && err.getCause() != null
-                        ? err.getCause() : err;
-                sendInternalError(call.callId, cause); // приложение зафейлило future — без close
-            } else {
-                ok = sendResult(call, value);
+            try {
+                if (err != null) {
+                    Throwable cause = err instanceof CompletionException && err.getCause() != null
+                            ? err.getCause() : err;
+                    sendInternalError(call.callId, cause); // приложение зафейлило future — без close
+                } else {
+                    ok = sendResult(call, value);
+                }
+            } finally {
+                finishAsync(ok); // in-flight снять даже если send бросил (outbound-overflow §9) — иначе слот течёт
             }
-            finishAsync(ok);
         });
     }
 
