@@ -35,6 +35,9 @@ public final class RmapClient {
     private volatile String host;
     private volatile int port;
     private volatile boolean userClosed;
+    /** Хоть раз дошли до AUTH_OK. Дискриминатор §4.4: только УСТАНОВЛЕННУЮ ранее сессию
+     *  переустанавливаем реконнектом; провал ПЕРВОГО connect — без reconnect (fail future). */
+    private volatile boolean everAuthenticated;
     private volatile long backoffMillis = RECONNECT_BASE_MILLIS;
 
     private volatile Runnable onAuthenticatedCallback;
@@ -65,14 +68,8 @@ public final class RmapClient {
         if (transport == null) {
             transport = NioTransport.clientTransport(config);
         }
-        // connect-future также фейлится по handshakeTimeout (§4.3).
         CompletableFuture<Void> f = connectFuture;
-        scheduler.schedule(() -> {
-            if (!f.isDone()) {
-                f.completeExceptionally(new RmapTransportException("TIMED_OUT: handshake timeout"));
-            }
-        }, config.getHandshakeTimeout().toMillis(), TimeUnit.MILLISECONDS);
-        // keep-alive PING + idle-close (§4.4).
+        // keep-alive PING + idle-close (§4.4) — один планировщик на весь жизненный цикл клиента.
         long keepAlive = config.getKeepAliveInterval().toMillis();
         scheduler.scheduleAtFixedRate(this::keepAliveTick, keepAlive, keepAlive, TimeUnit.MILLISECONDS);
         doConnect();
@@ -80,7 +77,31 @@ public final class RmapClient {
     }
 
     private void doConnect() {
-        current = transport.connect(host, port, config, new Listener());
+        if (userClosed) {
+            return; // scheduled-попытка после close() — no-op
+        }
+        RmapConnection c = transport.connect(host, port, config, new Listener());
+        current = c;
+        scheduleHandshakeTimeout(c);
+    }
+
+    /** Per-attempt handshake-timeout (§4.3): фейлит ПЕРВЫЙ connect-future и рвёт протухший сокет. */
+    private void scheduleHandshakeTimeout(RmapConnection c) {
+        try {
+            scheduler.schedule(() -> {
+                if (userClosed || c.isAuthenticated()) {
+                    return;
+                }
+                // handshake не дошёл до AUTH_OK за отведённое время.
+                CompletableFuture<Void> f = connectFuture;
+                if (f != null && !f.isDone()) {
+                    f.completeExceptionally(new RmapTransportException("TIMED_OUT: handshake timeout"));
+                }
+                c.close(); // §4: закрыть сокет → onClosed → (re)connect по правилам §4.4
+            }, config.getHandshakeTimeout().toMillis(), TimeUnit.MILLISECONDS);
+        } catch (java.util.concurrent.RejectedExecutionException ignored) {
+            // scheduler остановлен (close())
+        }
     }
 
     public boolean isAuthenticated() {
@@ -140,10 +161,11 @@ public final class RmapClient {
         public void onOpened(RmapConnection conn) {
             HandshakeState hs = new HandshakeState(conn,
                     () -> {
-                        backoffMillis = RECONNECT_BASE_MILLIS; // сессия установлена — сброс backoff
+                        everAuthenticated = true;              // сессия установлена (§4.4)
+                        backoffMillis = RECONNECT_BASE_MILLIS; // успех → сброс backoff
                         CompletableFuture<Void> f = connectFuture;
                         if (f != null) {
-                            f.complete(null);
+                            f.complete(null); // no-op если уже завершён (реконнект)
                         }
                         Runnable cb = onAuthenticatedCallback;
                         if (cb != null) {
@@ -155,6 +177,12 @@ public final class RmapClient {
                         if (f != null) {
                             f.completeExceptionally(ex);
                         }
+                    },
+                    // §4: попытка брошена, если ПЕРВЫЙ connect-future уже зафейлен (handshake-timeout).
+                    // При реконнекте future завершён УСПЕШНО → isCompletedExceptionally()==false → принимаем.
+                    () -> {
+                        CompletableFuture<Void> f = connectFuture;
+                        return f != null && f.isCompletedExceptionally();
                     });
             conn.setAttachment(hs);
             hs.start(); // клиент шлёт HELLO
@@ -185,11 +213,14 @@ public final class RmapClient {
             if (userClosed) {
                 return;
             }
-            if (conn.isAuthenticated()) {
-                // обрыв УСТАНОВЛЕННОЙ сессии → reconnect с backoff (§4.4).
+            if (everAuthenticated) {
+                // Сессия хоть раз была установлена → держим соединение живым реконнектом (§4.4).
+                // Покрывает и обрыв установленной сессии (conn.isAuthenticated()), и провал
+                // ПОПЫТКИ реконнекта до auth (conn ещё не authenticated) — обе перевзводят цикл.
                 scheduleReconnect();
                 return;
             }
+            // ПЕРВЫЙ connect ещё не аутентифицировался — reconnect НЕ выполняем (§4.4).
             // handshake-фаза: предпочесть ошибку, произведённую самим handshake (напр. из OTHER-кадра).
             // §9: onClosed может гоняться с in-flight onFrame(OTHER) — даём хендшейку зафейлить future.
             CompletableFuture<Void> f = connectFuture;

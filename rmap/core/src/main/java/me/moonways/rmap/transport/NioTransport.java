@@ -86,6 +86,10 @@ public final class NioTransport {
                     int ops = connectedNow ? SelectionKey.OP_READ : SelectionKey.OP_CONNECT;
                     SelectionKey k = sc.register(selector, ops, new Attach(conn, listener, config));
                     conn.setKey(k);
+                    // §2(b): listener доступен doClose СРАЗУ (в т.ч. при провале finishConnect —
+                    // connection-refused), иначе onClosed теряется. onOpened по-прежнему только
+                    // после успешного finishConnect (deliverOpened).
+                    conn.setListenerInternal(listener);
                     if (connectedNow) {
                         deliverOpened(conn, listener);
                     }
@@ -202,6 +206,7 @@ public final class NioTransport {
         RmapConnection conn = new RmapConnection(this, sc, true, serverConfig);
         SelectionKey k = sc.register(selector, SelectionKey.OP_READ, new Attach(conn, serverListener, serverConfig));
         conn.setKey(k);
+        conn.setListenerInternal(serverListener); // §2(b): listener доступен doClose сразу
         deliverOpened(conn, serverListener);
     }
 
@@ -313,7 +318,7 @@ public final class NioTransport {
     }
 
     private void deliverOpened(RmapConnection conn, ConnectionListener listener) {
-        conn.setListenerInternal(listener);
+        // listener уже установлен при регистрации (§2(b)); здесь только доставка onOpened.
         workers.execute(() -> {
             try { listener.onOpened(conn); }
             catch (RuntimeException e) { closeConnection(conn, e); }

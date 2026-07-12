@@ -6,6 +6,7 @@ import me.moonways.rmap.wire.Frame;
 import me.moonways.rmap.wire.FrameType;
 import me.moonways.rmap.wire.OtherCode;
 
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -29,23 +30,36 @@ public final class HandshakeState {
     private final boolean serverSide;
     private final Runnable onAuthenticated;
     private final Consumer<Throwable> onFailed;
+    /** true ⇒ текущая попытка уже брошена (connect-future зафейлен по handshake-timeout, §4). */
+    private final BooleanSupplier staleAttempt;
 
     private State state;
 
     // client-side
     private byte[] clientNonce;
     private byte[] expectedServerMac;
+    /** §9-reorder: AUTH_OK, пришедший раньше HELLO_ACK (публичная ветка сервера шлёт их back-to-back). */
+    private Frame pendingAuthOk;
     // server-side
     private HmacAuth.AuthInput serverAuthInput;
+
+    /** §5: user-коллбек (onAuthenticated), собранный под монитором для запуска СНАРУЖИ него. */
+    private Runnable pendingUserCallback;
 
     private volatile long lastInboundMillis = System.currentTimeMillis();
 
     public HandshakeState(RmapConnection connection, Runnable onAuthenticated, Consumer<Throwable> onFailed) {
+        this(connection, onAuthenticated, onFailed, () -> false);
+    }
+
+    public HandshakeState(RmapConnection connection, Runnable onAuthenticated, Consumer<Throwable> onFailed,
+                          BooleanSupplier staleAttempt) {
         this.connection = connection;
         this.config = connection.config();
         this.serverSide = connection.isServerSide();
         this.onAuthenticated = onAuthenticated;
         this.onFailed = onFailed;
+        this.staleAttempt = staleAttempt;
     }
 
     /** Отметка входящей активности (для idle-close). Вызывается фасадом на каждый кадр. */
@@ -71,8 +85,24 @@ public final class HandshakeState {
         }
     }
 
-    /** Обработка handshake-кадра. Синхронизировано: строгая state-машина (§9). */
-    public synchronized void onFrame(RmapConnection conn, Frame frame) {
+    /**
+     * Обработка handshake-кадра. Разбор — под {@code synchronized} (строгая state-машина, §9);
+     * собранный user-коллбек (onAuthenticated) выполняется СНАРУЖИ монитора (§5, deadlock-класс
+     * при реентерабельном user-коде).
+     */
+    public void onFrame(RmapConnection conn, Frame frame) {
+        Runnable post;
+        synchronized (this) {
+            handleFrameLocked(conn, frame);
+            post = pendingUserCallback;
+            pendingUserCallback = null;
+        }
+        if (post != null) {
+            post.run();
+        }
+    }
+
+    private void handleFrameLocked(RmapConnection conn, Frame frame) {
         touchInbound();
         if (state == State.AUTHENTICATED || state == State.FAILED) {
             return; // терминальные состояния — игнорируем «поздние» кадры
@@ -88,8 +118,17 @@ public final class HandshakeState {
                 handleHello(frame);
                 break;
             case WAIT_HELLO_ACK:
+                // §9: транспорт диспатчит кадры без per-connection ordering — публичная ветка
+                // сервера шлёт HELLO_ACK и AUTH_OK back-to-back, и AUTH_OK может прийти первым.
+                // Это НЕ ошибка: стэшируем AUTH_OK и обработаем сразу после HELLO_ACK.
+                if (type == FrameType.AUTH_OK) { pendingAuthOk = frame; return; }
                 if (type != FrameType.HELLO_ACK) { protocolError(type); return; }
                 handleHelloAck(frame);
+                if (state == State.WAIT_AUTH_OK && pendingAuthOk != null) {
+                    Frame stashed = pendingAuthOk;
+                    pendingAuthOk = null;
+                    handleAuthOk(stashed);
+                }
                 break;
             case WAIT_AUTH_RESPONSE:
                 if (type != FrameType.AUTH_RESPONSE) { protocolError(type); return; }
@@ -199,10 +238,19 @@ public final class HandshakeState {
     // ---- общее ----
 
     private void markAuthenticated() {
+        // §4: поздний AUTH_OK не «оживляет» протухшее соединение. Если попытка уже брошена
+        // (connect-future зафейлен по handshake-timeout) — не помечаем authenticated и не
+        // стартуем keep-alive, а закрываем сокет.
+        if (staleAttempt.getAsBoolean()) {
+            state = State.FAILED;
+            connection.close();
+            return;
+        }
         state = State.AUTHENTICATED;
         connection.setAuthenticated(true);
         connection.setFrameLimitFull();
-        onAuthenticated.run();
+        // §5: user-коллбек выполняем СНАРУЖИ монитора (см. onFrame).
+        pendingUserCallback = onAuthenticated;
     }
 
     /** Клиент получил OTHER (connection-level ошибка, §4.2a) — фейлит connect-future именем кода. */

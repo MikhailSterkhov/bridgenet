@@ -43,6 +43,30 @@ class HandshakeE2eTest {
     }
 
     @Test
+    void public_access_mutual_success_and_ping_pong() throws Exception {
+        // Публичный сервер шлёт HELLO_ACK и AUTH_OK back-to-back (§4.3): реальный лок
+        // §9-reorder (Critical #1) в живом сценарии — с фиксом всегда успешен.
+        RmapNet net = RmapNet.create();
+        RmapServer server = net.newServer(cfg(null, "app-1")); // publicAccess
+        server.bind(new java.net.InetSocketAddress("127.0.0.1", 0));
+        server.start();
+
+        RmapClient client = net.newClient(cfg(null, "app-1")); // publicAccess
+        client.connect("127.0.0.1", server.boundPort()).get(5, TimeUnit.SECONDS);
+        assertThat(client.isAuthenticated()).isTrue();
+
+        AtomicInteger pongs = new AtomicInteger();
+        client.onPong(pongs::incrementAndGet);
+        client.sendPing();
+        long deadline = System.currentTimeMillis() + 5000;
+        while (pongs.get() == 0 && System.currentTimeMillis() < deadline) Thread.sleep(20);
+        assertThat(pongs.get()).isGreaterThanOrEqualTo(1);
+
+        client.close();
+        server.stop();
+    }
+
+    @Test
     void wrong_key_is_rejected() throws Exception {
         RmapNet net = RmapNet.create();
         RmapServer server = net.newServer(cfg("right", "app-1"));

@@ -85,7 +85,48 @@ public final class RmapServer {
     private final class Listener implements ConnectionListener {
         @Override
         public void onOpened(RmapConnection conn) {
-            HandshakeState hs = new HandshakeState(conn,
+            ensureHandshake(conn);
+        }
+
+        @Override
+        public void onFrame(RmapConnection conn, Frame frame) {
+            // §9: транспорт диспатчит кадры конкурентно и БЕЗ гарантии, что onFrame не опередит
+            // onOpened — HELLO может прийти раньше, чем onOpened успел создать HandshakeState.
+            // ensureHandshake атомарно и идемпотентно поднимает машину, поэтому кадр не теряется.
+            HandshakeState hs = ensureHandshake(conn);
+            hs.touchInbound();
+            if (conn.isAuthenticated()) {
+                if (frame.getType() == FrameType.PING) {
+                    // PONG — побайтовое эхо timestamp (§4.4).
+                    conn.send(new Frame(FrameType.PONG, 0L, frame.getPayload()));
+                }
+            } else {
+                hs.onFrame(conn, frame);
+            }
+        }
+
+        @Override
+        public void onClosed(RmapConnection conn, Throwable cause) {
+            connections.remove(conn);
+        }
+    }
+
+    /**
+     * Атомарно (под монитором соединения) создаёт per-connection {@link HandshakeState}, стартует
+     * его и взводит handshake-timeout — ровно один раз. Вызывается и из onOpened, и из onFrame
+     * (§9: кадр может опередить onOpened), поэтому обязана быть идемпотентной.
+     */
+    private HandshakeState ensureHandshake(RmapConnection conn) {
+        HandshakeState existing = (HandshakeState) conn.getAttachment();
+        if (existing != null) {
+            return existing;
+        }
+        synchronized (conn) {
+            HandshakeState hs = (HandshakeState) conn.getAttachment();
+            if (hs != null) {
+                return hs;
+            }
+            hs = new HandshakeState(conn,
                     () -> {
                         Consumer<RmapConnection> cb = onAuthenticatedCallback;
                         if (cb != null) {
@@ -102,27 +143,7 @@ public final class RmapServer {
                     conn.close(OtherCode.TIMED_OUT, "handshake timeout");
                 }
             }, config.getHandshakeTimeout().toMillis(), TimeUnit.MILLISECONDS);
-        }
-
-        @Override
-        public void onFrame(RmapConnection conn, Frame frame) {
-            HandshakeState hs = (HandshakeState) conn.getAttachment();
-            if (hs != null) {
-                hs.touchInbound();
-            }
-            if (conn.isAuthenticated()) {
-                if (frame.getType() == FrameType.PING) {
-                    // PONG — побайтовое эхо timestamp (§4.4).
-                    conn.send(new Frame(FrameType.PONG, 0L, frame.getPayload()));
-                }
-            } else if (hs != null) {
-                hs.onFrame(conn, frame);
-            }
-        }
-
-        @Override
-        public void onClosed(RmapConnection conn, Throwable cause) {
-            connections.remove(conn);
+            return hs;
         }
     }
 }
