@@ -50,7 +50,9 @@ public final class CodecRegistry {
         return serializable.contains(c) || c.isAnnotationPresent(RmapSerializable.class);
     }
 
-    /** Точный тип → ближайший зарегистрированный супертип/интерфейс; null если нет. */
+    /** Точный тип → наиболее специфичный (самый узкий) зарегистрированный супертип/интерфейс;
+     *  при несравнимых кандидатах tie-break по FQN {@code type().getName()} (детерминизм между JVM);
+     *  null если совпадений нет. */
     public ValueCodec<?> findCodec(Class<?> type) {
         ValueCodec<?> cached = resolveCache.get(type);
         if (cached != null) {
@@ -66,11 +68,20 @@ public final class CodecRegistry {
         if (direct != null) {
             return direct;
         }
+        // Среди всех assignable-кандидатов выбираем НАИБОЛЕЕ СПЕЦИФИЧНЫЙ (самый узкий);
+        // при несравнимых типах — детерминированный tie-break по FQN. Порядок итерации
+        // HashMap недетерминирован между JVM, поэтому «первый попавшийся» брать нельзя.
+        ValueCodec<?> best = null;
         for (Map.Entry<Class<?>, ValueCodec<?>> e : exact.entrySet()) {
             if (e.getKey().isAssignableFrom(type)) {
-                return e.getValue();
+                if (best == null
+                        || best.type().isAssignableFrom(e.getKey())            // e — более узкий, чем best
+                        || (!e.getKey().isAssignableFrom(best.type())          // несравнимы →
+                            && e.getKey().getName().compareTo(best.type().getName()) < 0)) { // tie-break по FQN
+                    best = e.getValue();
+                }
             }
         }
-        return null;
+        return best;
     }
 }

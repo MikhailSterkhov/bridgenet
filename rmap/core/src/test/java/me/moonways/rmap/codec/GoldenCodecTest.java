@@ -63,6 +63,19 @@ class GoldenCodecTest {
         return w.toByteArray();
     }
 
+    private Object decode(byte[] bytes) {
+        return codec.decode(new RmapByteReader(bytes, 0, bytes.length), null);
+    }
+
+    private static byte[] fromHex(String hex) {
+        int n = hex.length() / 2;
+        byte[] out = new byte[n];
+        for (int i = 0; i < n; i++) {
+            out[i] = (byte) Integer.parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+        }
+        return out;
+    }
+
     private String toHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes) {
@@ -86,19 +99,26 @@ class GoldenCodecTest {
         }
     }
 
-    /** Единая проверка golden: печать GENERATE при отсутствии эталона, иначе — побайтовое сравнение. */
-    private void assertGolden(String name, String hex) {
+    /**
+     * Двунаправленная проверка golden (спека §12): (1) encode(value) побайтово == эталону
+     * (печать GENERATE при отсутствии ресурса); (2) decode(эталон) equals исходному value.
+     */
+    private void assertGolden(String name, Object value) {
+        String hex = encodeHex(value);
         String expected = golden(name);
         if (expected == null) {
             System.out.println("GENERATE golden/" + name + ".hex = " + hex);
         }
         assertThat(expected).as("создай ресурс golden/" + name + ".hex со значением из stdout").isNotNull();
         assertThat(hex).as("wire-дрейф golden/" + name).isEqualTo(expected);
+        // обратное направление: эталон → decode → equals исходному значению.
+        Object decoded = decode(fromHex(expected));
+        assertThat(decoded).as("decode эталона golden/" + name + " должен дать equals-значение").isEqualTo(value);
     }
 
     @Test
     void golden_pair() {
-        assertGolden("pair", encodeHex(new Pair("k", 42)));
+        assertGolden("pair", new Pair("k", 42));
     }
 
     @Test
@@ -112,18 +132,18 @@ class GoldenCodecTest {
         assertThat(countOccurrences(latin1, fqn))
                 .as("FQN Pair должен встречаться в потоке ровно один раз (интернирование)")
                 .isEqualTo(1);
-        assertGolden("pair_list", toHex(bytes));
+        assertGolden("pair_list", list);
     }
 
     @Test
     void golden_inheritance() {
         // Поля пишутся от корня к листу (Base.id, затем Derived.name).
-        assertGolden("inheritance", encodeHex(new Derived(99L, "leaf")));
+        assertGolden("inheritance", new Derived(99L, "leaf"));
     }
 
     @Test
     void golden_enum() {
-        assertGolden("enum", encodeHex(Color.GREEN));
+        assertGolden("enum", Color.GREEN);
     }
 
     @Test
@@ -131,7 +151,7 @@ class GoldenCodecTest {
         Map<String, Integer> map = new LinkedHashMap<>();
         map.put("one", 1);
         map.put("two", 2);
-        assertGolden("map", encodeHex(map));
+        assertGolden("map", map);
     }
 
     @Test
@@ -141,7 +161,7 @@ class GoldenCodecTest {
         // как повторная сериализация — это самая хрупкая часть wire-формата.
         Pair shared = new Pair("k", 42);
         Holder h = new Holder(shared, shared);
-        assertGolden("backref", encodeHex(h));
+        assertGolden("backref", h);
     }
 
     private static int countOccurrences(String haystack, String needle) {

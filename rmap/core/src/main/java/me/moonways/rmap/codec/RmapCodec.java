@@ -14,6 +14,14 @@ public final class RmapCodec {
 
     static final int MAX_DEPTH = 32; // спека §5.1
 
+    /**
+     * Whitelist-значение «принять любой класс из провода» для {@link #decode}. Резолв FQN
+     * идёт БЕЗ проверки набора — небезопасно против враждебного ввода (произвольная загрузка
+     * классов). Использовать ТОЛЬКО в тестах или для доверенного источника; в проде передавать
+     * реальный набор разрешённых FQN.
+     */
+    public static final Set<String> ACCEPT_ALL_CLASSES = null;
+
     @FunctionalInterface interface TlvWriter { void write(Object value); }
     @FunctionalInterface interface TlvReader { Object read(); }
 
@@ -34,6 +42,11 @@ public final class RmapCodec {
 
     public Object decode(RmapByteReader in, Set<String> whitelist) {
         return decode(in, whitelist, new ClassInterner(), new RefTable(), 0);
+    }
+
+    /** Декод с {@link #ACCEPT_ALL_CLASSES}: без проверки whitelist. Только тесты/доверенный ввод. */
+    public Object decode(RmapByteReader in) {
+        return decode(in, ACCEPT_ALL_CLASSES);
     }
 
     // ---- encode ----
@@ -77,6 +90,7 @@ public final class RmapCodec {
         @SuppressWarnings("unchecked")
         ValueCodec<Object> vc = (ValueCodec<Object>) registry.findCodec(c);
         if (vc != null) {
+            checkDepth(depth); // лимит глубины на весь граф: рекурсивный ValueCodec не должен обходить гейт
             out.writeByte(Tags.VALUE_CODEC);
             interner.writeClassRef(out, c);
             RmapByteWriter body = new RmapByteWriter();
@@ -176,6 +190,7 @@ public final class RmapCodec {
             case Tags.BACK_REF: return refs.readGet(in.readInt());
             case Tags.OBJECT: return decodeObject(in, whitelist, interner, refs, depth);
             case Tags.VALUE_CODEC: {
+                checkDepth(depth); // симметрично encode: лимит глубины и на decode-стороне VC
                 Class<?> vcClass = interner.readClassRef(in, whitelist);
                 ValueCodec<?> codec = registry.findCodec(vcClass);
                 if (codec == null) {
@@ -217,6 +232,9 @@ public final class RmapCodec {
     private Object decodeObject(RmapByteReader in, Set<String> whitelist, ClassInterner interner, RefTable refs, int depth) {
         checkDepth(depth);
         Class<?> c = interner.readClassRef(in, whitelist);
+        if (c.isEnum() || Enum.class.isAssignableFrom(c)) {
+            throw new RmapCodecException("enum must use ENUM tag, not OBJECT: " + c.getName());
+        }
         Object instance = UnsafeAllocator.allocate(c);
         refs.readRegister(instance); // pre-order: до чтения полей (self-reference)
         for (Field f : ClassSchema.of(c)) {

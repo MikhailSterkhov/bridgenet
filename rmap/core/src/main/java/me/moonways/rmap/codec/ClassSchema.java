@@ -33,7 +33,8 @@ public final class ClassSchema {
             List<Field> level = new ArrayList<>();
             for (Field f : declared) {
                 int m = f.getModifiers();
-                if (Modifier.isStatic(m) || Modifier.isTransient(m)) {
+                if (Modifier.isStatic(m) || Modifier.isTransient(m) || f.isSynthetic()) {
+                    // synthetic: this$0 у non-static inner-классов утащил бы outer-инстанс в схему
                     continue;
                 }
                 f.setAccessible(true);

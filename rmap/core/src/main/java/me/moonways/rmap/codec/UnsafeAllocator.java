@@ -66,6 +66,10 @@ public final class UnsafeAllocator {
                         + ": got " + value.getClass().getName(), e);
             }
         } else {
+            if (value != null && !t.isInstance(value)) {
+                throw new RmapCodecException("type mismatch for field " + field.getName()
+                        + ": expected " + t.getName() + ", got " + value.getClass().getName());
+            }
             UNSAFE.putObject(owner, off, value);
         }
     }

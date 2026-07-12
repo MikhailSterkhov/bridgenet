@@ -49,6 +49,8 @@ class ObjectCodecTest {
         private Point b; // контейнер для проверки back-ref/интернирования без массивов (массивы — задача 5)
     }
 
+    enum Color { RED, GREEN, BLUE }
+
     private final RmapCodec codec = new RmapCodec();
 
     @SuppressWarnings("unchecked")
@@ -163,6 +165,54 @@ class ObjectCodecTest {
         w.writeStr("not-an-int");
         w.writeByte(Tags.INT);              // y = 0
         w.writeInt(0);
+        byte[] b = w.toByteArray();
+        assertThatThrownBy(() -> new RmapCodec().decode(new RmapByteReader(b, 0, b.length), null))
+                .isInstanceOf(RmapCodecException.class);
+    }
+
+    @Test
+    void wrong_type_in_object_field_throws_codec_exception() {
+        // Кадр OBJECT для Point, где в слот поля label (String) записан не-STRING тег (LIST,
+        // size 0 → пустой ArrayList). isInstance-гейт в UnsafeAllocator.putField обязан
+        // отвергнуть type-confusion объектного поля (спека §5.1), а не писать ArrayList в String.
+        RmapByteWriter w = new RmapByteWriter();
+        w.writeByte(Tags.OBJECT);
+        ClassInterner ci = new ClassInterner();
+        ci.writeClassRef(w, Point.class);
+        // поля Point по имени: label(String), x(int), y(int)
+        w.writeByte(Tags.LIST);             // label — ПОДДЕЛКА: LIST вместо STRING
+        w.writeInt(0);                      // пустой список
+        w.writeByte(Tags.INT);              // x = 0
+        w.writeInt(0);
+        w.writeByte(Tags.INT);              // y = 0
+        w.writeInt(0);
+        byte[] b = w.toByteArray();
+        assertThatThrownBy(() -> new RmapCodec().decode(new RmapByteReader(b, 0, b.length), null))
+                .isInstanceOf(RmapCodecException.class);
+    }
+
+    @Test
+    void object_tag_with_enum_class_is_rejected() {
+        // Кадр OBJECT с classRef на enum-класс: enum-guard в decodeObject обязан отвергнуть
+        // (иначе Unsafe.allocateInstance(enum) + запись name/ordinal → фейковая «константа»).
+        RmapByteWriter w = new RmapByteWriter();
+        w.writeByte(Tags.OBJECT);
+        new ClassInterner().writeClassRef(w, Color.class);
+        byte[] b = w.toByteArray();
+        assertThatThrownBy(() -> new RmapCodec().decode(new RmapByteReader(b, 0, b.length), null))
+                .isInstanceOf(RmapCodecException.class);
+    }
+
+    @Test
+    void deep_list_chain_is_rejected_on_decode() {
+        // Ручной кадр: 40 вложенных LIST (size=1) минуя encode-гейт. decode обязан отвергнуть
+        // глубину >32 (checkDepth на decode-стороне), доказывая лимит глубины на весь граф.
+        RmapByteWriter w = new RmapByteWriter();
+        for (int i = 0; i < 40; i++) {
+            w.writeByte(Tags.LIST);
+            w.writeInt(1); // ровно один элемент — следующий вложенный LIST
+        }
+        w.writeByte(Tags.NULL); // дно
         byte[] b = w.toByteArray();
         assertThatThrownBy(() -> new RmapCodec().decode(new RmapByteReader(b, 0, b.length), null))
                 .isInstanceOf(RmapCodecException.class);
