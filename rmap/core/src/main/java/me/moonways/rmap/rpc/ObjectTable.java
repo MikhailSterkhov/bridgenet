@@ -11,8 +11,9 @@ import java.util.Map;
  * выдачи ТОГО ЖЕ refId на тот же объект. Живёт на время одной аутентифицированной сессии; на разрыв
  * — {@link #clear()}. Все операции под одним монитором (per-connection, низкая конкуренция).
  *
- * <p><b>Lease.</b> Порог {@code leaseTimeoutMillis} (дефолт 10 мин; package-private сеттер — тест;
- * конфиг — задача 6). {@link #get(long)} лениво эвиктит запись, к которой не обращались дольше
+ * <p><b>Lease.</b> Порог {@code leaseTimeoutMillis} (дефолт 10 мин; {@code RmapConfig.refLeaseTimeout},
+ * конструктор — единственная точка ввода, immutable на время жизни таблицы). {@link #get(long)}
+ * лениво эвиктит запись, к которой не обращались дольше
  * порога (возврат {@code null} = «нет/умер» → сервер отвечает {@code STALE_REF}); общий scheduler
  * сервера дополнительно раз в минуту зовёт {@link #sweepExpired(long)} для проактивной очистки.
  */
@@ -22,7 +23,7 @@ final class ObjectTable {
     private final Map<Long, Entry> byId = new HashMap<>();
     private final Map<Object, Long> byIdentity = new IdentityHashMap<>();
     private long nextRefId = 1L;
-    private long leaseTimeoutMillis;
+    private final long leaseTimeoutMillis;
     private long unknownReleaseCount;
 
     ObjectTable(long leaseTimeoutMillis) {
@@ -94,31 +95,28 @@ final class ObjectTable {
         }
     }
 
-    /** Lease-эвикция: убрать все записи без обращений дольше {@code olderThanMillis}. */
-    void sweepExpired(long olderThanMillis) {
+    /** Lease-эвикция: убрать все записи без обращений дольше {@code olderThanMillis}. Возвращает
+     *  число эвиктнутых записей (задача 6: лог sweep-эвикций на вызывающей стороне). */
+    int sweepExpired(long olderThanMillis) {
         synchronized (lock) {
             long now = System.currentTimeMillis();
+            int evicted = 0;
             Iterator<Entry> it = byId.values().iterator();
             while (it.hasNext()) {
                 Entry e = it.next();
                 if (now - e.lastAccessMillis >= olderThanMillis) {
                     it.remove();
                     unlinkIdentity(e);
+                    evicted++;
                 }
             }
+            return evicted;
         }
     }
 
     long getLeaseTimeoutMillis() {
         synchronized (lock) {
             return leaseTimeoutMillis;
-        }
-    }
-
-    /** Тестовый сеттер порога lease (конфиг — задача 6). */
-    void setLeaseTimeoutMillis(long millis) {
-        synchronized (lock) {
-            this.leaseTimeoutMillis = millis;
         }
     }
 

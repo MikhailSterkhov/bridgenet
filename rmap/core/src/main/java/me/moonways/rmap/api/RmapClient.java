@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -39,15 +40,21 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class RmapClient {
 
+    private static final RmapLogger LOG = RmapLogging.get(RmapClient.class.getName());
+
     private static final long RECONNECT_BASE_MILLIS = 1000L;
     private static final long RECONNECT_CAP_MILLIS = 30_000L;
     private static final long ONCLOSE_GRACE_MILLIS = 2000L;
 
     private final RmapConfig config;
+    private final RmapMetrics metrics;
     private final ScheduledExecutorService scheduler;
     /** Завершение клиентских future — НЕ на decode/scheduler-потоке (§9): блокирующий continuation
-     *  юзера не стопорит ни serial-decode, ни keep-alive. */
-    private final ExecutorService callbackPool;
+     *  юзера не стопорит ни serial-decode, ни keep-alive. {@code RmapConfig.callbackExecutor} — внешний
+     *  пул (lifecycle у вызывающего, close() его НЕ трогает); иначе — собственный daemon-пул
+     *  (owned, закрывается в {@link #close()}). */
+    private final Executor callbackPool;
+    private final boolean ownsCallbackPool;
     /** Делегат serial-decode DONE/OTHER (wire-порядок §5.2a); отдельный от callback-пула. */
     private final ExecutorService decodeExecutor;
     private final CodecRegistry codecRegistry = new CodecRegistry();
@@ -74,11 +81,22 @@ public final class RmapClient {
     private volatile Runnable onAuthenticatedCallback;
     private volatile Runnable onPongCallback;
 
-    RmapClient(RmapConfig config) {
+    RmapClient(RmapConfig config, RmapMetrics metrics) {
         this.config = config;
+        this.metrics = metrics != null ? metrics : RmapMetrics.NO_OP;
         this.scheduler = Executors.newSingleThreadScheduledExecutor(daemonFactory("rmap-client-sched"));
-        this.callbackPool = Executors.newFixedThreadPool(2, daemonFactory("rmap-client-callback"));
+        Executor external = config.getCallbackExecutor();
+        if (external != null) {
+            this.callbackPool = external;
+            this.ownsCallbackPool = false;
+        } else {
+            this.callbackPool = Executors.newFixedThreadPool(2, daemonFactory("rmap-client-callback"));
+            this.ownsCallbackPool = true;
+        }
         this.decodeExecutor = Executors.newSingleThreadExecutor(daemonFactory("rmap-client-decode"));
+        // §11: конфигуратор кодека — ДО первого lookup(); регистрирует пользовательские ValueCodec'ы
+        // и serializable()-классы в per-client реестре.
+        config.getCodec().accept(codecRegistry);
     }
 
     private static ThreadFactory daemonFactory(String name) {
@@ -230,9 +248,12 @@ public final class RmapClient {
             for (LookupSpec spec : registeredLookups.values()) {
                 union.addAll(spec.whitelist);
             }
-            ConnectionCodec connCodec = new ConnectionCodec(codec, union);
+            // §5.1: явные .codec(...)-регистрации доверяются на decode независимо от графа сигнатур
+            // (напр. @Snapshot-возврат — конкретный класс, не wrap-интерфейс лукапнутого метода).
+            union.addAll(codecRegistry.explicitWhitelist());
+            ConnectionCodec connCodec = new ConnectionCodec(codec, union, config.getMaxInternedClasses(), metrics);
             s = new ClientSession(this, conn, connCodec, codec, callbackPool, decodeExecutor, scheduler,
-                    generationSeq.incrementAndGet());
+                    generationSeq.incrementAndGet(), metrics);
             connCodec.setRefContext(s); // клиентский RefContext (§10): REMOTE_REF → ref-прокси
             sessions.put(conn, s);
             this.session = s;
@@ -279,7 +300,12 @@ public final class RmapClient {
         }
         // call-слой: остановить decode/callback-пулы (pending уже fail-fast'ятся на onClosed).
         decodeExecutor.shutdownNow();
-        callbackPool.shutdownNow();
+        // §11: callbackExecutor владения — свой (дефолтный) пул закрываем; внешний, переданный
+        // юзером через RmapConfig.callbackExecutor, — НЕ трогаем (lifecycle не наш, нет утечки,
+        // но и нет права его останавливать).
+        if (ownsCallbackPool) {
+            ((ExecutorService) callbackPool).shutdownNow();
+        }
     }
 
     private void keepAliveTick() {
@@ -302,6 +328,7 @@ public final class RmapClient {
         }
         long delay = backoffMillis;
         backoffMillis = Math.min(backoffMillis * 2, RECONNECT_CAP_MILLIS);
+        LOG.info("scheduling reconnect to " + host + ":" + port + " in " + delay + "ms");
         try {
             scheduler.schedule(this::doConnect, delay, TimeUnit.MILLISECONDS);
         } catch (java.util.concurrent.RejectedExecutionException ignored) {
@@ -352,6 +379,7 @@ public final class RmapClient {
                 // §9: первый post-auth кадр может опередить onAuthenticated-коллбек — поднимаем
                 // сессию идемпотентно, чтобы DONE/OTHER/LOOKUP_ACK не потерялись.
                 ClientSession s = ensureSession(conn);
+                metrics.frameIn(frame.getPayload().length);
                 switch (frame.getType()) {
                     case PONG: {
                         Runnable cb = onPongCallback;

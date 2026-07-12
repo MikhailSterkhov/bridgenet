@@ -1,6 +1,8 @@
 package me.moonways.rmap.transport;
 
 import me.moonways.rmap.api.ProtocolVersion;
+import me.moonways.rmap.api.RmapLogger;
+import me.moonways.rmap.api.RmapLogging;
 import me.moonways.rmap.auth.HmacAuth;
 import me.moonways.rmap.wire.Frame;
 import me.moonways.rmap.wire.FrameType;
@@ -20,6 +22,8 @@ import java.util.function.Consumer;
  * Anti-downgrade — обе стороны. MAC-сравнения — только {@link HmacAuth#constantTimeEquals}.
  */
 public final class HandshakeState {
+
+    private static final RmapLogger LOG = RmapLogging.get(HandshakeState.class.getName());
 
     private enum State { WAIT_HELLO, WAIT_HELLO_ACK, WAIT_AUTH_RESPONSE, WAIT_AUTH_OK, AUTHENTICATED, FAILED }
 
@@ -256,6 +260,7 @@ public final class HandshakeState {
         state = State.AUTHENTICATED;
         connection.setAuthenticated(true);
         connection.setFrameLimitFull();
+        LOG.info("auth success (" + (serverSide ? "server" : "client") + ") " + connection.remoteAddress());
         // §5: user-коллбек выполняем СНАРУЖИ монитора (см. onFrame).
         pendingUserCallback = onAuthenticated;
     }
@@ -283,12 +288,16 @@ public final class HandshakeState {
     /** Сервер отвергает соединение: OTHER(code) + close (§4.3). Future нет. */
     private void fatalServer(int code, String message) {
         state = State.FAILED;
+        LOG.warn("auth/handshake failure (server) " + connection.remoteAddress() + ": "
+                + OtherCode.name(code) + " " + message, null);
         connection.close(code, message);
     }
 
     /** Клиент детектировал нарушение: фейлит future и рвёт соединение. */
     private void failClient(int code, String message) {
         state = State.FAILED;
+        LOG.warn("auth/handshake failure (client) " + connection.remoteAddress() + ": "
+                + OtherCode.name(code) + " " + message, null);
         onFailed.accept(new RmapTransportException(OtherCode.name(code) + ": " + message));
         connection.close(code, message);
     }

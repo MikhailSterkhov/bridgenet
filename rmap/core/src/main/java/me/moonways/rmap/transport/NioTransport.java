@@ -1,5 +1,7 @@
 package me.moonways.rmap.transport;
 
+import me.moonways.rmap.api.RmapLogger;
+import me.moonways.rmap.api.RmapLogging;
 import me.moonways.rmap.wire.Frame;
 import me.moonways.rmap.wire.FrameCodec;
 
@@ -20,8 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /** Plain-NIO транспорт RMAP: 1 selector-поток (только I/O) + worker-pool (спека §9). */
 public final class NioTransport {
 
-    /** §4: жёсткий дедлайн close-after-flush — hostile-пир, переставший читать, не держит соединение вечно. */
-    private static final long CLOSE_AFTER_FLUSH_DEADLINE_MILLIS = 5000L;
+    private static final RmapLogger LOG = RmapLogging.get(NioTransport.class.getName());
 
     private final Selector selector;
     private final ExecutorService workers;
@@ -182,9 +183,11 @@ public final class NioTransport {
             }
             conn.setCloseCause(cause);
             conn.closeAfterFlushFlag().set(true);
-            // §4: взводим дедлайн — если пир перестал читать, OP_WRITE не сработает и отложенный
-            // doClose иначе не наступит никогда; selector-loop форсирует close по истечении.
-            conn.setCloseDeadlineMillis(System.currentTimeMillis() + CLOSE_AFTER_FLUSH_DEADLINE_MILLIS);
+            // §4: взводим дедлайн (RmapConfig.closeFlushTimeout, задача 6) — если пир перестал читать,
+            // OP_WRITE не сработает и отложенный doClose иначе не наступит никогда; selector-loop
+            // форсирует close по истечении.
+            long deadlineMillis = conn.config().getCloseFlushTimeout().toMillis();
+            conn.setCloseDeadlineMillis(System.currentTimeMillis() + deadlineMillis);
             pendingClose.add(conn);
             k.interestOps(k.interestOps() | SelectionKey.OP_WRITE);
         });
@@ -430,6 +433,11 @@ public final class NioTransport {
         SelectionKey k = conn.getKeyInternal();
         if (k != null) k.cancel();
         try { conn.channel().close(); } catch (IOException ignored) { }
+        if (cause != null) {
+            LOG.debug("connection closed " + conn.remoteAddress() + ": " + cause);
+        } else {
+            LOG.debug("connection closed " + conn.remoteAddress());
+        }
         ConnectionListener l = conn.listenerInternal();
         if (l != null) {
             workers.execute(() -> {
@@ -439,6 +447,7 @@ public final class NioTransport {
     }
 
     private void deliverOpened(RmapConnection conn, ConnectionListener listener) {
+        LOG.debug("connection opened " + conn.remoteAddress());
         // listener уже установлен при регистрации (§2(b)); здесь только доставка onOpened.
         workers.execute(() -> {
             try { listener.onOpened(conn); }

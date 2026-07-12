@@ -2,6 +2,9 @@ package me.moonways.rmap.rpc;
 
 import me.moonways.rmap.api.RmapClient;
 import me.moonways.rmap.api.RmapConnectionException;
+import me.moonways.rmap.api.RmapLogger;
+import me.moonways.rmap.api.RmapLogging;
+import me.moonways.rmap.api.RmapMetrics;
 import me.moonways.rmap.api.RmapRemoteException;
 import me.moonways.rmap.api.RmapStaleRefException;
 import me.moonways.rmap.api.RmapTimeoutException;
@@ -43,6 +46,8 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class ClientSession implements RefContext {
 
+    private static final RmapLogger LOG = RmapLogging.get(ClientSession.class.getName());
+
     private final RmapClient client;
     private final RmapConnection conn;
     private final ConnectionCodec connCodec;
@@ -51,6 +56,7 @@ public final class ClientSession implements RefContext {
     private final SerialExecutor decodeSerial;
     private final ScheduledExecutorService scheduler;
     private final int generation;
+    private final RmapMetrics metrics;
     private final RefReleaser refReleaser;
     private volatile ScheduledFuture<?> refReleaserTask;
 
@@ -64,7 +70,7 @@ public final class ClientSession implements RefContext {
 
     public ClientSession(RmapClient client, RmapConnection conn, ConnectionCodec connCodec, RmapCodec codec,
                          Executor callbackPool, Executor decodeExecutor,
-                         ScheduledExecutorService scheduler, int generation) {
+                         ScheduledExecutorService scheduler, int generation, RmapMetrics metrics) {
         this.client = client;
         this.conn = conn;
         this.connCodec = connCodec;
@@ -73,6 +79,7 @@ public final class ClientSession implements RefContext {
         this.decodeSerial = new SerialExecutor(decodeExecutor);
         this.scheduler = scheduler;
         this.generation = generation;
+        this.metrics = metrics != null ? metrics : RmapMetrics.NO_OP;
         this.cancelSender = callId -> conn.send(new Frame(FrameType.CANCEL, callId, EMPTY));
         this.refReleaser = new RefReleaser(this);
         // GC-триггерируемый REF_RELEASE (§10): дренаж очереди phantom'ов раз в 1с на общем scheduler'е.
@@ -334,6 +341,7 @@ public final class ClientSession implements RefContext {
             PendingCall pc = pending.remove(callId);
             if (pc == null) {
                 droppedLate.incrementAndGet();
+                metrics.lateAnswerDropped();
                 return;
             }
             cancelTimer(pc);
@@ -351,6 +359,8 @@ public final class ClientSession implements RefContext {
             } catch (RuntimeException ex) {
                 return; // малформ OTHER — дроп
             }
+            LOG.debug("received OTHER(" + me.moonways.rmap.wire.OtherCode.name(other.getCode())
+                    + ") callId=" + callId + ": " + other.getMessage());
             if (callId == 0L) {
                 conn.close(); // connection-level OTHER post-auth: рвём соединение (reconnect несёт причину)
                 return;
@@ -364,6 +374,7 @@ public final class ClientSession implements RefContext {
             PendingCall pc = pending.remove(callId);
             if (pc == null) {
                 droppedLate.incrementAndGet();
+                metrics.lateAnswerDropped();
                 return;
             }
             cancelTimer(pc);

@@ -7,6 +7,7 @@ import me.moonways.rmap.api.RmapSerializable;
 import me.moonways.rmap.api.RmapServer;
 import me.moonways.rmap.api.RmapStaleRefException;
 import me.moonways.rmap.api.Snapshot;
+import me.moonways.rmap.codec.CodecRegistry;
 import me.moonways.rmap.transport.Access;
 import me.moonways.rmap.transport.RmapConfig;
 import org.junit.jupiter.api.AfterEach;
@@ -14,14 +15,15 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
 import java.net.InetSocketAddress;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -86,21 +88,38 @@ class RemoteRefsTest {
     private RmapServer server;
     private RmapClient client;
 
-    private RmapConfig cfg() {
+    private RmapConfig cfg(Duration refLeaseTimeout, Consumer<CodecRegistry> codecConfigurer) {
         return RmapConfig.builder().access(Access.privateKey("ref-key"))
-                .appVersion("b2ref").clientName("ref-test").build();
+                .appVersion("b2ref").clientName("ref-test")
+                .refLeaseTimeout(refLeaseTimeout)
+                .codec(codecConfigurer)
+                .build();
     }
 
-    private CounterHub connect() throws Exception {
+    private RmapConfig cfg() {
+        return cfg(Duration.ofMinutes(10), c -> { });
+    }
+
+    /** Задача 6: refLeaseTimeout — конфиг-путь (заменяет прежний package-private
+     *  {@code ObjectTable.setLeaseTimeoutMillis} test-seam), а не post-hoc мутация живого ObjectTable. */
+    private CounterHub connect(Duration refLeaseTimeout, Consumer<CodecRegistry> codecConfigurer) throws Exception {
         RmapNet net = RmapNet.create();
-        server = net.newServer(cfg());
+        server = net.newServer(cfg(refLeaseTimeout, codecConfigurer));
         server.bind(new InetSocketAddress("127.0.0.1", 0));
         server.put("Services").export("CounterHub", CounterHub.class, new CounterHubImpl(),
                 ExportOptions.builder().wrapReturnAsRemote(Counter.class).build());
         server.start();
-        client = net.newClient(cfg());
+        client = net.newClient(cfg(refLeaseTimeout, codecConfigurer));
         client.connect("127.0.0.1", server.boundPort()).get(5, TimeUnit.SECONDS);
         return client.lookup("Services/CounterHub", CounterHub.class);
+    }
+
+    private CounterHub connect(Duration refLeaseTimeout) throws Exception {
+        return connect(refLeaseTimeout, c -> { });
+    }
+
+    private CounterHub connect() throws Exception {
+        return connect(Duration.ofMinutes(10));
     }
 
     @AfterEach
@@ -195,10 +214,10 @@ class RemoteRefsTest {
 
     @Test
     void lease_expiry_makes_ref_stale_but_keeps_connection() throws Exception {
-        CounterHub hub = connect();
+        // Задача 6: короткий lease — конфиг-путь (RmapConfig.refLeaseTimeout), а не test-seam
+        // ObjectTable.setLeaseTimeoutMillis (удалён).
+        CounterHub hub = connect(Duration.ofMillis(200));
         Counter c = hub.counter("x");
-        RmapAgent agent = oneAgent();
-        agent.objectTable().setLeaseTimeoutMillis(200); // тестовый порог lease
         sleep(400);                                     // без обращений дольше lease
         assertThatThrownBy(c::increment)
                 .as("вызов по протухшему ref → RmapStaleRefException").isInstanceOf(RmapStaleRefException.class);
@@ -229,12 +248,14 @@ class RemoteRefsTest {
 
     @Test
     void snapshot_method_returns_value_not_proxy() throws Exception {
-        CounterHub hub = connect();
+        // Долг-фикс задачи 5→6: @Snapshot кодирует ЗНАЧЕНИЕМ конкретный класс (CounterImpl), не
+        // видимый статическому графу сигнатур (там только wrap-интерфейс Counter) — явная
+        // .codec(c -> c.serializable(CounterImpl.class)) на клиенте авто-покрывает decode-whitelist
+        // (§5.1: "манифесты... плюс явные регистрации"), БЕЗ ручного connCodec().addWhitelist(...).
+        CounterHub hub = connect(Duration.ofMinutes(10), c -> c.serializable(CounterImpl.class));
         Counter c = hub.counter("x");
         c.increment();
         c.increment(); // серверный count = 2
-        // @Snapshot кодирует ЗНАЧЕНИЕМ (CounterImpl) — клиент должен уметь его декодировать по FQN.
-        client.liveSession().connCodec().addWhitelist(Collections.singleton(CounterImpl.class.getName()));
         Counter snap = hub.snapshot("x");
         assertThat(Proxy.isProxyClass(snap.getClass())).as("@Snapshot — значение, не прокси").isFalse();
         assertThat(snap).isInstanceOf(CounterImpl.class);
@@ -262,11 +283,9 @@ class RemoteRefsTest {
     void rejected_ref_call_with_object_arg_advances_read_interner() throws Exception {
         // Долг-фикс задачи 3: STALE_REF (non-closing) на кадре с объектным аргументом ДОЛЖЕН слить
         // argCount×TLV, продвинув read-интернер, иначе следующий легитимный кадр с CLASSREF_USE
-        // того же класса не резолвится и рвёт соединение.
-        CounterHub hub = connect();
+        // того же класса не резолвится и рвёт соединение. Lease=1мс — конфиг-путь (задача 6).
+        CounterHub hub = connect(Duration.ofMillis(1));
         Counter c = hub.counter("x");
-        RmapAgent agent = oneAgent();
-        agent.objectTable().setLeaseTimeoutMillis(1);
         sleep(60); // ref протух
 
         // ref-форма RGET с объектным аргументом Tag (первое вхождение → CLASSREF_DEF на write-стороне

@@ -1,5 +1,6 @@
 package me.moonways.rmap.rpc;
 
+import me.moonways.rmap.api.RmapMetrics;
 import me.moonways.rmap.codec.ClassInterner;
 import me.moonways.rmap.codec.CodecContext;
 import me.moonways.rmap.codec.RefContext;
@@ -25,19 +26,26 @@ public final class ConnectionCodec {
     private final ClassInterner writeInterner;
     private final ClassInterner readInterner;
     private final Object writeLock = new Object();
+    private final RmapMetrics metrics;
     private volatile RefContext refs; // задача 5; до неё null
 
     public ConnectionCodec(RmapCodec codec, Set<String> initialWhitelist) {
-        this(codec, initialWhitelist, 4096);
+        this(codec, initialWhitelist, 4096, RmapMetrics.NO_OP);
     }
 
     public ConnectionCodec(RmapCodec codec, Set<String> initialWhitelist, int maxInternedClasses) {
+        this(codec, initialWhitelist, maxInternedClasses, RmapMetrics.NO_OP);
+    }
+
+    public ConnectionCodec(RmapCodec codec, Set<String> initialWhitelist, int maxInternedClasses,
+                           RmapMetrics metrics) {
         this.codec = codec;
         if (initialWhitelist != null) {
             this.whitelist.addAll(initialWhitelist);
         }
         this.writeInterner = new ClassInterner(maxInternedClasses);
         this.readInterner = new ClassInterner(maxInternedClasses);
+        this.metrics = metrics != null ? metrics : RmapMetrics.NO_OP;
     }
 
     public interface PayloadWriter {
@@ -80,7 +88,9 @@ public final class ConnectionCodec {
                     scope.end();
                 }
             }
-            conn.send(new Frame(type, callId, out.toByteArray()));
+            byte[] payload = out.toByteArray();
+            conn.send(new Frame(type, callId, payload));
+            metrics.frameOut(payload.length);
         }
     }
 

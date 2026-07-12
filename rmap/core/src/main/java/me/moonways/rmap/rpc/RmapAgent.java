@@ -1,5 +1,8 @@
 package me.moonways.rmap.rpc;
 
+import me.moonways.rmap.api.RmapLogger;
+import me.moonways.rmap.api.RmapLogging;
+import me.moonways.rmap.api.RmapMetrics;
 import me.moonways.rmap.api.Snapshot;
 import me.moonways.rmap.codec.CodecContext;
 import me.moonways.rmap.codec.CodecRegistry;
@@ -52,6 +55,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class RmapAgent {
 
+    private static final RmapLogger LOG = RmapLogging.get(RmapAgent.class.getName());
+
     private final RmapConnection conn;
     private final ConnectionCodec connCodec;
     private final RmapCodec codec;
@@ -62,6 +67,7 @@ public final class RmapAgent {
     private final Map<Integer, SerialExecutor> subjectSerial;
     private final NioTransport transport;
     private final RmapConfig config;
+    private final RmapMetrics metrics;
 
     private final SerialExecutor decodeSerial;
     private final ConcurrentHashMap<Long, QueuedCall> queued = new ConcurrentHashMap<>();
@@ -76,7 +82,7 @@ public final class RmapAgent {
     public RmapAgent(RmapConnection conn, ConnectionCodec connCodec, RmapCodec codec,
                      CodecRegistry codecRegistry, SubjectRegistry registry, Executor invokePool,
                      Map<Integer, SerialExecutor> subjectSerial, NioTransport transport,
-                     RmapConfig config, long refLeaseTimeoutMillis) {
+                     RmapConfig config, RmapMetrics metrics) {
         this.conn = conn;
         this.connCodec = connCodec;
         this.codec = codec;
@@ -86,14 +92,16 @@ public final class RmapAgent {
         this.subjectSerial = subjectSerial;
         this.transport = transport;
         this.config = config;
+        this.metrics = metrics != null ? metrics : RmapMetrics.NO_OP;
         this.decodeSerial = new SerialExecutor(invokePool);
-        this.objectTable = new ObjectTable(refLeaseTimeoutMillis);
+        this.objectTable = new ObjectTable(config.getRefLeaseTimeout().toMillis());
         this.refContext = new RefContextImpl(objectTable);
         connCodec.setRefContext(refContext); // §10: REMOTE_REF encode на ответах этого соединения
     }
 
     /** Роутинг post-auth кадра. Вызывается на worker-потоке транспорта (конкурентно, §9). */
     public void onFrame(Frame frame) {
+        metrics.frameIn(frame.getPayload().length);
         switch (frame.getType()) {
             case PING:
                 // PONG — побайтовое эхо timestamp (§4.4); не TLV → прямой send допустим.
@@ -131,10 +139,13 @@ public final class RmapAgent {
 
     /** Lease-эвикция ref'ов (§10): вызывается общим scheduler'ом сервера раз в минуту. */
     public void sweepExpiredRefs() {
-        objectTable.sweepExpired(objectTable.getLeaseTimeoutMillis());
+        int evicted = objectTable.sweepExpired(objectTable.getLeaseTimeoutMillis());
+        if (evicted > 0) {
+            LOG.debug("ref lease sweep evicted " + evicted + " entries on " + conn.remoteAddress());
+        }
     }
 
-    /** ObjectTable соединения (интроспекция для тестов/метрик; конфиг/SPI — задача 6). */
+    /** ObjectTable соединения (интроспекция для тестов/метрик). */
     ObjectTable objectTable() {
         return objectTable;
     }
@@ -225,6 +236,7 @@ public final class RmapAgent {
         ObjectTable.Entry entry = objectTable.get(header.getRefId());
         if (entry == null) {
             // ref мёртв/истёк lease — прикладной STALE_REF (без close); слить аргументы (интернер §5.2a).
+            metrics.staleRefHit();
             if (drainArgs(in, readCtx, header.getArgCount(), callId)) {
                 sendOther(callId, OtherCode.STALE_REF, "stale ref: " + header.getRefId());
             }
@@ -310,6 +322,7 @@ public final class RmapAgent {
     private void drainOther(Frame frame) {
         try {
             CallWire.decodeOther(reader(frame), codec, connCodec.readCtx());
+            LOG.debug("dropped spurious OTHER from peer on " + conn.remoteAddress());
         } catch (RmapCodecException e) {
             sendOtherAndClose(0L, OtherCode.PROTOCOL_ERROR, "malformed OTHER from peer");
         }
@@ -318,6 +331,7 @@ public final class RmapAgent {
 
     private void enqueueAndSubmit(QueuedCall call) {
         queued.put(call.callId, call);
+        metrics.callStarted();
         int n = inFlight.incrementAndGet();
         if (n >= config.getMaxInFlightRequests()) {
             transport.pauseReads(conn); // §9: input flow-control
@@ -326,6 +340,7 @@ public final class RmapAgent {
     }
 
     private void runCall(QueuedCall call) {
+        boolean success = false;
         try {
             if (queued.remove(call.callId) == null) {
                 return; // снят CANCEL'ом до старта / очищен onClosed — invoke пропускаем.
@@ -374,16 +389,22 @@ public final class RmapAgent {
             // успех: DONE(TLV результата); void/empty → TLV NULL. Долг-фикс задачи 3: encode результата
             // может бросить RmapCodecException (полиморфный подтип мимо аудита) — тогда интернер откачен
             // (ConnectionCodec) и мы отвечаем internal-error (EXCEPTION-TLV интернер не трогает), а не
-            // тихо роняем ответ.
+            // тихо роняем ответ. Долг-фикс задачи 5 (задача 6): ПОЛЬЗОВАТЕЛЬСКИЙ ValueCodec.write (§5.3,
+            // задача 6) может бросить ЛЮБОЙ RuntimeException, не только RmapCodecException — узкий catch
+            // пропускал его мимо этого блока, клиент не получал ни DONE, ни OTHER и висел до deadline.
+            // ConnectionCodec.encodeAndSend уже откатывает write-интернер на ЛЮБОЙ RuntimeException
+            // (см. его javadoc) — здесь достаточно расширить catch, интернер остаётся цел.
             try {
                 connCodec.encodeAndSend(conn, FrameType.DONE, call.callId,
                         call.wrapSet, snapshotRoot, call.parentOpts,
                         (out, ctx) -> codec.encode(out, encoded, ctx));
-            } catch (RmapCodecException e) {
+                success = true;
+            } catch (RuntimeException e) {
                 sendInternalError(call.callId, e);
             }
         } finally {
             onCallFinished();
+            metrics.callCompleted(success);
         }
     }
 
@@ -417,11 +438,13 @@ public final class RmapAgent {
         for (long refId : refIds) {
             objectTable.release(refId); // неизвестный refId — молча + метрика (§10)
         }
+        metrics.refReleased(refIds.length);
     }
 
     // ---- отправка ответов (§4.2a: эхо callId; connection-level OTHER — callId=0) ----
 
     private void sendOther(long callId, int code, String message) {
+        LOG.debug("sending OTHER(" + OtherCode.name(code) + ") callId=" + callId + ": " + message);
         connCodec.encodeAndSend(conn, FrameType.OTHER, callId,
                 (out, ctx) -> CallWire.encodeOther(out, code, message));
     }
@@ -433,6 +456,7 @@ public final class RmapAgent {
 
     private void sendInternalError(long callId, Throwable cause) {
         String message = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getName();
+        LOG.warn("sending OTHER(INTERNAL_ERROR) callId=" + callId + ": " + message, cause);
         connCodec.encodeAndSend(conn, FrameType.OTHER, callId,
                 (out, ctx) -> CallWire.encodeOtherWithException(out, OtherCode.INTERNAL_ERROR, message,
                         o -> codec.encodeThrowable(o, cause, ctx)));

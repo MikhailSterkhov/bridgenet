@@ -41,6 +41,8 @@ import java.util.function.Consumer;
  */
 public final class RmapServer {
 
+    private static final RmapLogger LOG = RmapLogging.get(RmapServer.class.getName());
+
     private final RmapConfig config;
     private final ScheduledExecutorService scheduler;
     /** §9: invoke-пул (один на сервер) — decode/invoke/encode агентов; НЕ worker-pool транспорта. */
@@ -53,22 +55,25 @@ public final class RmapServer {
     private final SubjectRegistry registry = new SubjectRegistry();
     private final CodecRegistry codecRegistry = new CodecRegistry();
     private final RmapCodec codec = new RmapCodec(codecRegistry);
+    private final RmapMetrics metrics;
 
     private volatile InetSocketAddress bindAddress;
     private volatile NioTransport transport;
     private volatile Consumer<RmapConnection> onAuthenticatedCallback;
     private volatile boolean started;
-    /** decode-whitelist соединения (§5.1) = объединение манифестов всех экспортов; готов на start(). */
+    /** decode-whitelist соединения (§5.1) = объединение манифестов всех экспортов ПЛЮС явные
+     *  {@code .codec(...)}-регистрации (§5.1: "манифесты... плюс явные регистрации"); готов на start(). */
     private volatile Set<String> unionWhitelist = Collections.emptySet();
-    /** Порог lease remote-ref'ов (§10, дефолт 10 мин). Тест/интроспекция — {@link #setRefLeaseTimeoutMillis};
-     *  публичный конфиг (RmapConfig.refLeaseTimeout) — задача 6. */
-    private volatile long refLeaseTimeoutMillis = 10L * 60_000L;
 
-    RmapServer(RmapConfig config) {
+    RmapServer(RmapConfig config, RmapMetrics metrics) {
         this.config = config;
+        this.metrics = metrics != null ? metrics : RmapMetrics.NO_OP;
         this.scheduler = Executors.newSingleThreadScheduledExecutor(daemonFactory("rmap-server-sched"));
         int invokeThreads = Math.max(2, Runtime.getRuntime().availableProcessors());
         this.invokePool = Executors.newFixedThreadPool(invokeThreads, daemonFactory("rmap-invoke"));
+        // §11: конфигуратор кодека — ДО первого export(); регистрирует пользовательские ValueCodec'ы
+        // и serializable()-классы в per-server реестре.
+        config.getCodec().accept(codecRegistry);
     }
 
     public void bind(InetSocketAddress address) {
@@ -93,6 +98,10 @@ public final class RmapServer {
         for (SubjectRegistry.Subject subject : registry.all()) {
             union.addAll(subject.getManifest().getDecodeWhitelist());
         }
+        // §5.1: "whitelist... плюс явные регистрации" — .codec(c -> c.serializable(X)/.register(codec))
+        // доверяются на decode независимо от того, виден ли конкретный класс статическому графу
+        // сигнатур (напр. @Snapshot-возврат кодируется конкретным классом, не wrap-интерфейсом).
+        union.addAll(codecRegistry.explicitWhitelist());
         this.unionWhitelist = Collections.unmodifiableSet(union);
         this.started = true; // export после start() → IllegalStateException
         this.transport = NioTransport.startServer(bindAddress, config, new Listener());
@@ -138,15 +147,12 @@ public final class RmapServer {
             // §8: export-time audit НЕМЕДЛЕННО — RmapExportException до старта.
             InterfaceManifest manifest = ExportAudit.audit(iface, opts, codecRegistry);
             registry.register(path, iface, impl, manifest, opts); // повторный path → RmapExportException
+            LOG.info("exported " + path + " (interface=" + iface.getName()
+                    + ", digest=" + manifest.getDigest() + ")");
         }
     }
 
-    /** Порог lease remote-ref'ов для новых соединений (§10). Тест/интроспекция; конфиг — задача 6. */
-    public void setRefLeaseTimeoutMillis(long millis) {
-        this.refLeaseTimeoutMillis = millis;
-    }
-
-    /** Живые per-connection агенты (интроспекция для тестов/метрик; SPI RmapMetrics — задача 6). */
+    /** Живые per-connection агенты (интроспекция для тестов/метрик). */
     public java.util.Collection<RmapAgent> activeAgents() {
         return agents.values();
     }
@@ -266,9 +272,10 @@ public final class RmapServer {
             if (agent != null) {
                 return agent;
             }
-            ConnectionCodec connCodec = new ConnectionCodec(codec, unionWhitelist);
+            ConnectionCodec connCodec = new ConnectionCodec(codec, unionWhitelist,
+                    config.getMaxInternedClasses(), metrics);
             agent = new RmapAgent(conn, connCodec, codec, codecRegistry, registry, invokePool, subjectSerial,
-                    transport, config, refLeaseTimeoutMillis);
+                    transport, config, metrics);
             agents.put(conn, agent);
             // §3(б)-аналог: если соединение уже закрыто, снимаем — onClosed мог пройти до put.
             if (conn.isClosed()) {

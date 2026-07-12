@@ -2,9 +2,12 @@ package me.moonways.rmap.transport;
 
 import lombok.Getter;
 import lombok.Setter;
+import me.moonways.rmap.api.RmapLogger;
+import me.moonways.rmap.api.RmapLogging;
 import me.moonways.rmap.wire.Frame;
 import me.moonways.rmap.wire.FrameCodec;
 import me.moonways.rmap.wire.FrameType;
+import me.moonways.rmap.wire.OtherCode;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
@@ -15,6 +18,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /** Одно соединение RMAP. send() потокобезопасен; чтение/запись сокета — на selector-потоке. */
 public final class RmapConnection {
+
+    private static final RmapLogger LOG = RmapLogging.get(RmapConnection.class.getName());
 
     private final NioTransport transport;
     private final SocketChannel channel;
@@ -115,6 +120,8 @@ public final class RmapConnection {
     public void close(int otherCode, String message) {
         // спека §4.3/§4.2a: инициатор ошибки шлёт OTHER(callId=0) и закрывает ПОСЛЕ его отправки.
         Throwable cause = new RmapTransportException("closed: code=" + otherCode + " " + message);
+        LOG.warn("sending connection-level OTHER(" + OtherCode.name(otherCode) + ") to " + remoteAddress()
+                + ": " + message, null);
         try {
             me.moonways.rmap.codec.RmapByteWriter w = new me.moonways.rmap.codec.RmapByteWriter();
             w.writeInt(otherCode);

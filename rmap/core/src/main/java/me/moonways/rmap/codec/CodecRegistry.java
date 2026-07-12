@@ -50,6 +50,25 @@ public final class CodecRegistry {
         return serializable.contains(c) || c.isAnnotationPresent(RmapSerializable.class);
     }
 
+    /**
+     * FQN явных регистраций этого реестра — {@code .serializable(X)} классы и типы зарегистрированных
+     * {@code ValueCodec}'ов (§5.1: whitelist decode = манифесты экспортов/лукапов ПЛЮС явные
+     * регистрации). Покрывает случай, когда концретный тип НЕ виден статическому графу сигнатур
+     * (напр. {@code @Snapshot}-возврат кодируется КОНКРЕТНЫМ классом, а интерфейс в сигнатуре — только
+     * его wrap-суперинтерфейс) — endpoint, явно опознавший класс через {@code .codec(...)}, тем самым
+     * доверяет ему на decode, без ручного {@code addWhitelist(...)}.
+     */
+    public Set<String> explicitWhitelist() {
+        Set<String> names = new HashSet<>();
+        for (Class<?> c : serializable) {
+            names.add(c.getName());
+        }
+        for (ValueCodec<?> vc : exact.values()) {
+            names.add(vc.type().getName());
+        }
+        return names;
+    }
+
     /** Точный тип → наиболее специфичный (самый узкий) зарегистрированный супертип/интерфейс;
      *  при несравнимых кандидатах tie-break по FQN {@code type().getName()} (детерминизм между JVM);
      *  null если совпадений нет. */
