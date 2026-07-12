@@ -33,6 +33,8 @@ class ClientProxyTest {
         String slow(int millis);
         @RmapExcluded
         void localOnly(Object callback);
+        // default-метод (§7.1): НЕ часть remote-контракта (contractMethods его исключает).
+        default int defaultTwice(int a, int b) { return add(a, b) * 2; }
     }
 
     public static class CalcImpl implements Calc {
@@ -150,6 +152,18 @@ class ClientProxyTest {
         Calc calc = connect();
         assertThatThrownBy(() -> calc.localOnly("x"))
                 .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void default_method_is_handled_locally_not_over_wire() throws Exception {
+        // Fix 3 (§7.1): default-метод интерфейса НЕ уходит в сеть (сервер ответил бы INVALID_SIGNATURE
+        // → RmapRemoteException). Обрабатывается локально → UnsupportedOperationException (выбранный
+        // вариант v1: нет надёжного на Java 8–24 пути локального исполнения default). Обычные методы живы.
+        Calc calc = connect();
+        assertThatThrownBy(() -> calc.defaultTwice(2, 3))
+                .isInstanceOf(UnsupportedOperationException.class)
+                .hasMessageContaining("default");
+        assertThat(calc.add(2, 3)).isEqualTo(5); // обычный метод по-прежнему работает
     }
 
     @Test

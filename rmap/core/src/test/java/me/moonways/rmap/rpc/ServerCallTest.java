@@ -202,6 +202,37 @@ class ServerCallTest {
     }
 
     @Test
+    void null_arg_for_primitive_param_gives_codec_error_and_close() throws Exception {
+        // Fix 2 (§7.2): NULL-тег в слоте примитивного параметра — структурный mismatch → CODEC_ERROR
+        // + close (как остальные type-mismatch'и), НЕ проваливается в invoke → IllegalArgumentException
+        // → INTERNAL_ERROR без close. Кадр: add(int,int) argCount=2, arg0=NULL, arg1=INT — арность верна,
+        // до decodeArgs доходим, гейт ловит null-примитив.
+        RmapNet net = RmapNet.create();
+        server = net.newServer(cfg());
+        server.bind(new InetSocketAddress("127.0.0.1", 0));
+        server.put("Services").export("Calc", Calculator.class, new CalculatorImpl());
+        server.start();
+
+        RawRpcClient raw = RawRpcClient.connect(server.boundPort(), cfg());
+        this.rawClient = raw.transport();
+        RmapCodec codec = new RmapCodec();
+        CodecContext wctx = CodecContext.of(new ClassInterner(), RmapCodec.ACCEPT_ALL_CLASSES);
+
+        CountDownLatch closed = raw.closedLatch();
+        RmapByteWriter rp = new RmapByteWriter();
+        CallWire.encodeRgetHeader(rp, 0, 0L, mid("add"), 5000, 2);
+        rp.writeByte(me.moonways.rmap.codec.Tags.NULL); // arg0 = null для int-параметра
+        codec.encode(rp, 3, wctx);                      // arg1 = 3
+        raw.send(FrameType.RGET, 40L, rp.toByteArray());
+
+        Frame other = raw.await(FrameType.OTHER);
+        assertThat(other.getCallId()).isEqualTo(40L);
+        assertThat(new RmapByteReader(other.getPayload(), 0, other.getPayload().length).readInt())
+                .isEqualTo(OtherCode.CODEC_ERROR);
+        assertThat(closed.await(5, TimeUnit.SECONDS)).as("соединение закрыто").isTrue();
+    }
+
+    @Test
     void expired_deadline_in_queue_gives_timed_out() throws Exception {
         // сервер с serialDispatch: первый вызов спит, второй протухает в очереди
         RmapNet net = RmapNet.create();

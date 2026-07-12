@@ -329,6 +329,13 @@ public final class RmapCodec {
         if (c.isEnum() || Enum.class.isAssignableFrom(c)) {
             throw new RmapCodecException("enum must use ENUM tag, not OBJECT: " + c.getName());
         }
+        // Симметрия с encode (§5.1): OBJECT-тег пишется ТОЛЬКО для isSerializable-класса. Враждебный пир
+        // может прислать OBJECT(classRef=встроенный контейнер/String/...) и Unsafe-собрать структурно
+        // кривой объект — отвергаем ДО allocate (defense-in-depth). Встроенные типы кодируются своими
+        // тегами (LIST/SET/MAP/STRING/UUID/BYTES), OBJECT им не нужен никогда.
+        if (!registry.isSerializable(c)) {
+            throw new RmapCodecException("OBJECT tag for non-serializable class: " + c.getName());
+        }
         Object instance = UnsafeAllocator.allocate(c);
         refs.readRegister(instance); // pre-order: до чтения полей (self-reference)
         for (Field f : ClassSchema.of(c)) {

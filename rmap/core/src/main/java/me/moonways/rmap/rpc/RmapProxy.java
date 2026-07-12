@@ -119,6 +119,14 @@ public final class RmapProxy implements InvocationHandler {
         if (method.isAnnotationPresent(RmapExcluded.class)) {
             throw new UnsupportedOperationException("method excluded from remote contract: " + method.getName());
         }
+        // 3. default-методы интерфейса (§7.1) — НЕ часть remote-контракта: MethodIds.contractMethods их
+        //    исключает, поэтому сетевой RGET получил бы INVALID_SIGNATURE (бессмысленный round-trip). v1
+        //    не исполняет default-методы: нет пути локального исполнения, надёжного на Java 8–24 разом
+        //    (privateLookupIn — только 9+, private-Lookup-хак ломается на 16+ инкапсуляцией java.lang.invoke).
+        //    Явный локальный отказ вместо непонятной удалённой ошибки.
+        if (method.isDefault()) {
+            throw new UnsupportedOperationException("default methods are not remotely invoked: " + method.getName());
+        }
 
         Class<?> ret = method.getReturnType();
         boolean async = ret == CompletableFuture.class;

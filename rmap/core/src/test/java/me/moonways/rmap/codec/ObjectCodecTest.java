@@ -192,6 +192,22 @@ class ObjectCodecTest {
     }
 
     @Test
+    void object_tag_with_non_serializable_class_is_rejected() {
+        // Fix 1 (defense-in-depth, §5.1): encode пишет OBJECT-тег ТОЛЬКО для isSerializable-класса;
+        // decode обязан симметрично отвергнуть OBJECT(classRef=не-serializable). Иначе враждебный пир
+        // Unsafe-соберёт «типобезопасный, но структурно кривой» встроенный контейнер (ArrayList и т.п.).
+        // Кадр строится вручную (минуя encode-гейт), декодируется с ACCEPT_ALL (null whitelist), чтобы
+        // classRef резолвился и управление доходило до isSerializable-гейта.
+        RmapByteWriter w = new RmapByteWriter();
+        w.writeByte(Tags.OBJECT);
+        new ClassInterner().writeClassRef(w, java.util.ArrayList.class);
+        byte[] b = w.toByteArray();
+        assertThatThrownBy(() -> new RmapCodec().decode(new RmapByteReader(b, 0, b.length), (java.util.Set<String>) null))
+                .isInstanceOf(RmapCodecException.class)
+                .hasMessageContaining("non-serializable");
+    }
+
+    @Test
     void object_tag_with_enum_class_is_rejected() {
         // Кадр OBJECT с classRef на enum-класс: enum-guard в decodeObject обязан отвергнуть
         // (иначе Unsafe.allocateInstance(enum) + запись name/ordinal → фейковая «константа»).

@@ -309,8 +309,15 @@ public final class RmapAgent {
         try {
             for (int i = 0; i < arity; i++) {
                 Object value = codec.decode(in, readCtx);
-                Class<?> expected = boxed(paramTypes[i]);
-                if (value != null && !expected.isInstance(value)) {
+                Class<?> paramType = paramTypes[i];
+                Class<?> expected = boxed(paramType);
+                // тег аргумента сверяется с ожидаемым типом (§7.2); mismatch → структурное нарушение.
+                // null для примитивного параметра — тоже структурный mismatch (invoke иначе бросил бы
+                // IllegalArgumentException → INTERNAL_ERROR без close вместо CODEC_ERROR + close).
+                boolean typeMismatch = value == null
+                        ? paramType.isPrimitive()
+                        : !expected.isInstance(value);
+                if (typeMismatch) {
                     sendOtherAndClose(callId, OtherCode.CODEC_ERROR,
                             "arg " + i + " type mismatch: expected " + expected.getName());
                     return null;
