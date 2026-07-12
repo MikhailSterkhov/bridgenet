@@ -4,6 +4,7 @@ import me.moonways.rmap.api.RmapClient;
 import me.moonways.rmap.api.RmapConnectionException;
 import me.moonways.rmap.api.RmapExcluded;
 import me.moonways.rmap.api.RmapRemoteException;
+import me.moonways.rmap.api.RmapStaleRefException;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -18,8 +19,14 @@ import java.util.concurrent.ExecutionException;
  * sync → блокировка на future с deadline; {@code CompletableFuture<T>} → future сразу
  * ({@code cancel(true)} → CANCEL); {@code Optional<T>} → NULL⇒empty; {@code void} → join, null.
  *
- * <p>{@code withOptions}-view — новый {@code RmapProxy} с тем же path/iface/digest и клиентом, но
- * другим дефолтным deadline; кэш subjectId и pending-map живут в общей {@link ClientSession}.
+ * <p><b>Два режима.</b> Subject-прокси (из {@code lookup}) адресует экспорт по {@code path/digest}.
+ * Ref-прокси ({@link #forRef}, §10) адресует remote-ref по {@code refId} через ref-форму RGET
+ * ({@code subjectId=-1}), без LOOKUP/digest, и захватывает {@code generation} породившей сессии:
+ * после reconnect (иная сессия) вызов → {@link RmapStaleRefException} ЛОКАЛЬНО, без сети («ref-прокси
+ * мертвы навсегда», §4.4).
+ *
+ * <p>{@code withOptions}-view — новый subject-{@code RmapProxy} с тем же path/iface/digest и клиентом,
+ * но другим дефолтным deadline; кэш subjectId и pending-map живут в общей {@link ClientSession}.
  */
 public final class RmapProxy implements InvocationHandler {
 
@@ -31,6 +38,9 @@ public final class RmapProxy implements InvocationHandler {
     private final Class<?> iface;
     private final long digest;
     private final RmapCallOptions options; // null → дефолтный call-timeout клиента
+    private final boolean refMode;
+    private final long refId;
+    private final int refGeneration;
 
     public RmapProxy(RmapClient client, String path, Class<?> iface, long digest, RmapCallOptions options) {
         this.client = client;
@@ -38,10 +48,45 @@ public final class RmapProxy implements InvocationHandler {
         this.iface = iface;
         this.digest = digest;
         this.options = options;
+        this.refMode = false;
+        this.refId = 0L;
+        this.refGeneration = 0;
+    }
+
+    private RmapProxy(RmapClient client, Class<?> iface, long refId, int refGeneration) {
+        this.client = client;
+        this.path = null;
+        this.iface = iface;
+        this.digest = 0L;
+        this.options = null;
+        this.refMode = true;
+        this.refId = refId;
+        this.refGeneration = refGeneration;
+    }
+
+    /** Ref-прокси (§10): привязан к (client, refId) и generation породившей сессии. */
+    public static RmapProxy forRef(RmapClient client, Class<?> iface, long refId, int refGeneration) {
+        return new RmapProxy(client, iface, refId, refGeneration);
     }
 
     public Class<?> iface() {
         return iface;
+    }
+
+    public boolean isRefMode() {
+        return refMode;
+    }
+
+    /** Явный синхронный {@code REF_RELEASE} (§10). No-op если сессия мертва/переустановлена. */
+    public void releaseRef() {
+        if (!refMode) {
+            throw new IllegalStateException("not a remote-ref proxy");
+        }
+        ClientSession session = client.liveSession();
+        if (session != null && session.generation() == refGeneration) {
+            session.releaseRefs(new long[]{refId});
+        }
+        // иначе: сессия ушла/reconnect — серверная таблица уже очищена разрывом, освобождать нечего
     }
 
     /** View с переопределённым deadline: тот же path/iface/digest/клиент (§7.1). */
@@ -51,7 +96,7 @@ public final class RmapProxy implements InvocationHandler {
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) {
-        // 1. Object-методы — локальны (identity + RmapProxy{path}), не сетевые (§7.1).
+        // 1. Object-методы — локальны (identity + toString), не сетевые (§7.1).
         if (method.getDeclaringClass() == Object.class) {
             switch (method.getName()) {
                 case "equals":
@@ -59,7 +104,7 @@ public final class RmapProxy implements InvocationHandler {
                 case "hashCode":
                     return System.identityHashCode(proxy);
                 case "toString":
-                    return "RmapProxy{" + path + "}";
+                    return refMode ? "RmapRef{" + iface.getName() + "#" + refId + "}" : "RmapProxy{" + path + "}";
                 default:
                     throw new UnsupportedOperationException("unsupported Object method: " + method.getName());
             }
@@ -71,27 +116,42 @@ public final class RmapProxy implements InvocationHandler {
 
         Class<?> ret = method.getReturnType();
         boolean async = ret == CompletableFuture.class;
-
-        // 3. живая сессия: нет соединения/не аутентифицировано → sync бросает, async — failed future.
-        ClientSession session = client.liveSession();
-        if (session == null) {
-            RmapConnectionException ex = new RmapConnectionException("client not connected/authenticated");
-            if (async) {
-                CompletableFuture<Object> f = new CompletableFuture<>();
-                f.completeExceptionally(ex);
-                return f;
-            }
-            throw ex;
-        }
-
-        long deadlineMillis = options != null && options.getDeadlineMillis() > 0
-                ? options.getDeadlineMillis()
-                : client.callTimeoutMillis();
         long methodId = METHOD_IDS.computeIfAbsent(method, MethodIds::methodId);
 
-        ClientSession.CallFuture cf = session.startCall(path, digest, method, methodId, args, deadlineMillis);
+        ClientSession.CallFuture cf;
+        if (refMode) {
+            // generation-гейт (§10, §4.4): reconnect случился → ref мёртв ЛОКАЛЬНО, без сетевого вызова.
+            ClientSession session = client.liveSession();
+            if (session == null || session.generation() != refGeneration) {
+                RmapStaleRefException ex = new RmapStaleRefException(
+                        "remote ref stale after reconnect/close: refId=" + refId);
+                if (async) {
+                    CompletableFuture<Object> f = new CompletableFuture<>();
+                    f.completeExceptionally(ex);
+                    return f;
+                }
+                throw ex;
+            }
+            cf = session.startRefCall(refId, method, methodId, args, client.callTimeoutMillis());
+        } else {
+            // живая сессия: нет соединения/не аутентифицировано → sync бросает, async — failed future.
+            ClientSession session = client.liveSession();
+            if (session == null) {
+                RmapConnectionException ex = new RmapConnectionException("client not connected/authenticated");
+                if (async) {
+                    CompletableFuture<Object> f = new CompletableFuture<>();
+                    f.completeExceptionally(ex);
+                    return f;
+                }
+                throw ex;
+            }
+            long deadlineMillis = options != null && options.getDeadlineMillis() > 0
+                    ? options.getDeadlineMillis()
+                    : client.callTimeoutMillis();
+            cf = session.startCall(path, digest, method, methodId, args, deadlineMillis);
+        }
 
-        // 4. форма возврата (§7.1).
+        // форма возврата (§7.1).
         if (async) {
             return cf; // future сразу; cancel(true) → CANCEL
         }

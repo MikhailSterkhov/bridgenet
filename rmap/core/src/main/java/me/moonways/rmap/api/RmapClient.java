@@ -231,8 +231,9 @@ public final class RmapClient {
                 union.addAll(spec.whitelist);
             }
             ConnectionCodec connCodec = new ConnectionCodec(codec, union);
-            s = new ClientSession(conn, connCodec, codec, callbackPool, decodeExecutor, scheduler,
+            s = new ClientSession(this, conn, connCodec, codec, callbackPool, decodeExecutor, scheduler,
                     generationSeq.incrementAndGet());
+            connCodec.setRefContext(s); // клиентский RefContext (§10): REMOTE_REF → ref-прокси
             sessions.put(conn, s);
             this.session = s;
             // §3(б)-аналог: соединение уже закрыто (onClosed опередил) — снять и fail-fast.

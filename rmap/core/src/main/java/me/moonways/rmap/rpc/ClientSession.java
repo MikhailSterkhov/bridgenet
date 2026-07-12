@@ -1,17 +1,21 @@
 package me.moonways.rmap.rpc;
 
+import me.moonways.rmap.api.RmapClient;
 import me.moonways.rmap.api.RmapConnectionException;
 import me.moonways.rmap.api.RmapRemoteException;
 import me.moonways.rmap.api.RmapStaleRefException;
 import me.moonways.rmap.api.RmapTimeoutException;
+import me.moonways.rmap.codec.RefContext;
 import me.moonways.rmap.codec.RmapByteReader;
 import me.moonways.rmap.codec.RmapCodec;
+import me.moonways.rmap.codec.RmapCodecException;
 import me.moonways.rmap.transport.RmapConnection;
 import me.moonways.rmap.wire.Frame;
 import me.moonways.rmap.wire.FrameType;
 import me.moonways.rmap.wire.OtherCode;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -27,13 +31,19 @@ import java.util.concurrent.atomic.AtomicLong;
  * реестр по соединению; разрыв → новая сессия (новый {@link #generation}), кэш subjectId пуст,
  * LOOKUP повторяется лениво.
  *
+ * <p><b>Remote-refs (§10).</b> Реализует клиентский {@link RefContext}: рефы клиент в v1 НЕ выдаёт
+ * ({@link #remoteInterfaceFor} → null), а входящий {@code REMOTE_REF} превращает в ref-прокси
+ * ({@link #proxyForRef}), привязанный к этой сессии (её {@link #generation}); GC-освобождение —
+ * через {@link RefReleaser}, явное — через {@link #releaseRefs}.
+ *
  * <p><b>Потоки.</b> DONE/OTHER декодируются строго последовательно на {@link #decodeSerial}
  * (wire-порядок class-интернирования §5.2a). Завершение future — на выделенном callback-пуле
  * (не на decode и не на scheduler-потоке): блокирующий continuation юзера не стопорит ни decode,
  * ни keep-alive (§9). LOOKUP_ACK не несёт TLV и обрабатывается прямо на worker-потоке.
  */
-public final class ClientSession {
+public final class ClientSession implements RefContext {
 
+    private final RmapClient client;
     private final RmapConnection conn;
     private final ConnectionCodec connCodec;
     private final RmapCodec codec;
@@ -41,6 +51,8 @@ public final class ClientSession {
     private final SerialExecutor decodeSerial;
     private final ScheduledExecutorService scheduler;
     private final int generation;
+    private final RefReleaser refReleaser;
+    private volatile ScheduledFuture<?> refReleaserTask;
 
     private final ConcurrentHashMap<Long, PendingCall> pending = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CompletableFuture<Integer>> subjectIds = new ConcurrentHashMap<>();
@@ -50,9 +62,10 @@ public final class ClientSession {
     // отправка CANCEL идёт через это семя (дефолт — реальный кадр, тест инъектирует провал); см. sendCancel.
     private volatile CancelSender cancelSender;
 
-    public ClientSession(RmapConnection conn, ConnectionCodec connCodec, RmapCodec codec,
+    public ClientSession(RmapClient client, RmapConnection conn, ConnectionCodec connCodec, RmapCodec codec,
                          Executor callbackPool, Executor decodeExecutor,
                          ScheduledExecutorService scheduler, int generation) {
+        this.client = client;
         this.conn = conn;
         this.connCodec = connCodec;
         this.codec = codec;
@@ -61,6 +74,14 @@ public final class ClientSession {
         this.scheduler = scheduler;
         this.generation = generation;
         this.cancelSender = callId -> conn.send(new Frame(FrameType.CANCEL, callId, EMPTY));
+        this.refReleaser = new RefReleaser(this);
+        // GC-триггерируемый REF_RELEASE (§10): дренаж очереди phantom'ов раз в 1с на общем scheduler'е.
+        try {
+            this.refReleaserTask = scheduler.scheduleAtFixedRate(refReleaser::tick, 1000L, 1000L,
+                    TimeUnit.MILLISECONDS);
+        } catch (RejectedExecutionException rej) {
+            this.refReleaserTask = null; // scheduler остановлен (клиент закрывается)
+        }
     }
 
     public RmapConnection connection() {
@@ -182,6 +203,99 @@ public final class ClientSession {
         return created;
     }
 
+    // ---- remote-ref вызов и release (§10) ----------------------------------------------------
+
+    /**
+     * Исходящий вызов по remote-ref: ref-форма RGET ({@code subjectId=-1, refId}) без LOOKUP/digest
+     * (§10.1). Регистрация pending + deadline-таймер идентичны {@link #startCall}. Generation-гейт
+     * (мёртв после reconnect) проверяется в {@link RmapProxy} ДО вызова — здесь сессия считается живой.
+     */
+    public CallFuture startRefCall(long refId, Method method, long methodId, Object[] args, long deadlineMillis) {
+        long deadlineAt = System.currentTimeMillis() + Math.max(1L, deadlineMillis);
+        long callId = callIds.getAndIncrement();
+        CallFuture cf = new CallFuture(this, callId);
+        PendingCall pc = new PendingCall(cf, method);
+        pending.put(callId, pc);
+
+        try {
+            long delay = Math.max(1L, deadlineAt - System.currentTimeMillis());
+            pc.timer = scheduler.schedule(() -> onDeadline(callId), delay, TimeUnit.MILLISECONDS);
+        } catch (RejectedExecutionException rej) {
+            pending.remove(callId);
+            cf.completeExceptionally(new RmapConnectionException("client scheduler stopped"));
+            return cf;
+        }
+        if (!pending.containsKey(callId)) {
+            cancelTimer(pc);
+            return cf; // future уже завершён failAllPending
+        }
+        if (conn.isClosed()) {
+            PendingCall r = pending.remove(callId);
+            if (r != null) {
+                cancelTimer(r);
+                cf.completeExceptionally(new RmapConnectionException("connection closed"));
+            }
+            return cf;
+        }
+
+        int remaining = (int) Math.max(1L,
+                Math.min(deadlineAt - System.currentTimeMillis(), CallWire.MAX_DEADLINE_MILLIS));
+        int argCount = args == null ? 0 : args.length;
+        connCodec.encodeAndSend(conn, FrameType.RGET, callId, (out, ctx) -> {
+            CallWire.encodeRgetHeader(out, -1, refId, methodId, remaining, argCount); // subjectId=-1 → ref-форма
+            if (args != null) {
+                for (Object arg : args) {
+                    codec.encode(out, arg, ctx);
+                }
+            }
+        });
+        if (conn.isClosed()) {
+            PendingCall r = pending.remove(callId);
+            if (r != null) {
+                cancelTimer(r);
+                completeLater(cf, null, new RmapConnectionException("connection closed"));
+            }
+        }
+        return cf;
+    }
+
+    /** Отправка {@code REF_RELEASE} (client→server, callId=0, без ответа §4.2). Best-effort:
+     *  провал send (закрытие/лимит) проглатывается — серверный lease/разрыв уберут ref сами. */
+    public void releaseRefs(long[] refIds) {
+        if (refIds == null || refIds.length == 0) {
+            return;
+        }
+        try {
+            connCodec.encodeAndSend(conn, FrameType.REF_RELEASE, 0L,
+                    (out, ctx) -> CallWire.encodeRefRelease(out, refIds));
+        } catch (RuntimeException ignored) {
+            // best-effort: соединение закрыто/лимит — сервер очистит ref lease'ом либо разрывом
+        }
+    }
+
+    // ---- RefContext SPI (клиентская сторона, §10) --------------------------------------------
+
+    /** Клиент в v1 рефы НЕ выдаёт: значение всегда кодируется по своим правилам, не как REMOTE_REF. */
+    @Override
+    public Class<?> remoteInterfaceFor(Object value) {
+        return null;
+    }
+
+    @Override
+    public long registerRef(Object value, Class<?> iface) {
+        throw new RmapCodecException("client does not register remote refs in v1");
+    }
+
+    /** Входящий {@code REMOTE_REF} → JDK-прокси ref-режима, привязанный к (client, refId, generation).
+     *  Регистрируется в {@link RefReleaser} для GC-триггерируемого REF_RELEASE. */
+    @Override
+    public Object proxyForRef(long refId, Class<?> iface) {
+        Object proxy = Proxy.newProxyInstance(iface.getClassLoader(), new Class<?>[]{iface},
+                RmapProxy.forRef(client, iface, refId, generation));
+        refReleaser.register(proxy, refId);
+        return proxy;
+    }
+
     // ---- входящие кадры (роутинг из RmapClient) ----------------------------------------------
 
     /** LOOKUP_ACK (§4.2): без TLV → прямо на worker-потоке. Отрицательный subjectId → PROTOCOL_ERROR. */
@@ -286,8 +400,13 @@ public final class ClientSession {
         }
     }
 
-    /** Разрыв соединения (§4.4/§7.2): ВСЕ pending + pending-lookups fail-fast, таймеры сняты. */
+    /** Разрыв соединения (§4.4/§7.2): ВСЕ pending + pending-lookups fail-fast, таймеры сняты,
+     *  тик ref-releaser'а снят (рефы этой сессии мертвы — §10). */
     public void failAllPending(Throwable cause) {
+        ScheduledFuture<?> rt = refReleaserTask;
+        if (rt != null) {
+            rt.cancel(false);
+        }
         for (Long callId : pending.keySet()) {
             PendingCall pc = pending.remove(callId);
             if (pc != null) {

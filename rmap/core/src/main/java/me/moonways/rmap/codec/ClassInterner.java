@@ -30,6 +30,22 @@ public final class ClassInterner {
         this.maxClasses = maxClasses;
     }
 
+    /** Текущий рубеж write-стороны (следующий classId). Пара к {@link #writeRollback(int)}:
+     *  encode ответа, бросивший исключение ПОСЛЕ записи classRef-def в выброшенный кадр, отравил бы
+     *  write-интернер (клиент никогда не увидит def → его CLASSREF_USE не резолвится). */
+    public synchronized int writeMark() {
+        return nextWriteId;
+    }
+
+    /** Откат write-стороны к рубежу {@code mark}: снять все def'ы с classId ≥ mark (их кадр не ушёл). */
+    public synchronized void writeRollback(int mark) {
+        if (mark >= nextWriteId) {
+            return;
+        }
+        writeIds.values().removeIf(id -> id >= mark);
+        nextWriteId = mark;
+    }
+
     public synchronized void writeClassRef(RmapByteWriter out, Class<?> type) {
         Integer id = writeIds.get(type);
         if (id != null) {

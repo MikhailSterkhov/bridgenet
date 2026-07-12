@@ -109,7 +109,10 @@ public final class ExportAudit {
                 Type returnType = method.getGenericReturnType();
                 walkType(returnType, true, EMPTY_ENV);
 
-                if (method.isAnnotationPresent(Snapshot.class) && !returnMentionsWrapped(returnType)) {
+                // Правило «@Snapshot требует wrapped-возврат» — серверная export-валидация: клиент
+                // (lookup) wrap-набор сервера не знает и @Snapshot-возврат просто декодирует значением.
+                if (mode == Mode.SERVER
+                        && method.isAnnotationPresent(Snapshot.class) && !returnMentionsWrapped(returnType)) {
                     addProblem("@Snapshot on method without wrapped return type");
                 }
             }

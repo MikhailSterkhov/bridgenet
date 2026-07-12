@@ -46,9 +46,40 @@ public final class ConnectionCodec {
 
     /** Атомарно: payload-encode + постановка кадра в outbound (§5.2a). */
     public void encodeAndSend(RmapConnection conn, FrameType type, long callId, PayloadWriter w) {
+        encodeAndSend(conn, type, callId, null, null, null, w);
+    }
+
+    /**
+     * Encode ответа с remote-ref областью (§10): под write-локом выставляет активный wrap-набор +
+     * snapshotRoot + opts-родителя на {@link RefContextImpl} (сервер), кодирует payload, снимает
+     * область. {@code wrapSet == null} → область не открывается (обычный encode).
+     *
+     * <p>Долг-фикс задачи 3: encode payload'а может бросить {@link me.moonways.rmap.codec.RmapCodecException}
+     * (полиморфный runtime-подтип мимо аудита) уже ПОСЛЕ записи classRef-def в буфер — что отравило бы
+     * write-интернер. Поэтому проход транзакционен: при сбое encode интернер откатывается к рубежу и
+     * исключение пробрасывается вызывающему (он отвечает internal-error, не трогающим интернер).
+     */
+    public void encodeAndSend(RmapConnection conn, FrameType type, long callId,
+                              Set<Class<?>> wrapSet, Object snapshotRoot, ExportOptions parentOpts,
+                              PayloadWriter w) {
         synchronized (writeLock) {
+            RefContextImpl scope = (wrapSet != null && refs instanceof RefContextImpl)
+                    ? (RefContextImpl) refs : null;
+            if (scope != null) {
+                scope.begin(wrapSet, snapshotRoot, parentOpts);
+            }
             RmapByteWriter out = new RmapByteWriter();
-            w.write(out, CodecContext.of(writeInterner, null, refs));
+            int mark = writeInterner.writeMark();
+            try {
+                w.write(out, CodecContext.of(writeInterner, null, refs));
+            } catch (RuntimeException e) {
+                writeInterner.writeRollback(mark); // выброшенный кадр не отравляет интернер
+                throw e;
+            } finally {
+                if (scope != null) {
+                    scope.end();
+                }
+            }
             conn.send(new Frame(type, callId, out.toByteArray()));
         }
     }
