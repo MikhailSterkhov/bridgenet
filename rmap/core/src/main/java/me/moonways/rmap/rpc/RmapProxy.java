@@ -91,6 +91,12 @@ public final class RmapProxy implements InvocationHandler {
 
     /** View с переопределённым deadline: тот же path/iface/digest/клиент (§7.1). */
     public RmapProxy viewWith(RmapCallOptions opts) {
+        if (refMode) {
+            // ref-прокси не имеет path/digest — viewWith создал бы subject-прокси с path=null, и
+            // первый же вызов упал бы NPE из subjectIds.get(null). Deadline-override для ref — follow-up.
+            throw new IllegalArgumentException(
+                    "withOptions is not supported on a remote-ref proxy: " + iface.getName());
+        }
         return new RmapProxy(client, path, iface, digest, opts);
     }
 

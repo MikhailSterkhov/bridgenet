@@ -42,6 +42,7 @@ class RemoteRefsTest {
         int increment();
         int value();
         int addTag(Tag tag); // объектный аргумент → несёт classRef (долг-фикс задачи 3)
+        int noteLength(Note note); // Note встречается ТОЛЬКО в графе wrapped-интерфейса (I4)
     }
 
     public interface CounterHub {
@@ -58,6 +59,15 @@ class RemoteRefsTest {
         public Tag(String label) { this.label = label; }
     }
 
+    /** DTO, используемый ТОЛЬКО в сигнатурах wrapped-интерфейса Counter, но НЕ в CounterHub (I4):
+     *  его whitelist должен прийти в манифест subject'а из аудита графа wrapped-возврата. */
+    @RmapSerializable
+    public static class Note {
+        private String text;
+        public Note() { }
+        public Note(String text) { this.text = text; }
+    }
+
     @RmapSerializable
     public static class CounterImpl implements Counter {
         private String name;
@@ -67,6 +77,7 @@ class RemoteRefsTest {
         public synchronized int increment() { return ++count; }
         public synchronized int value() { return count; }
         public int addTag(Tag tag) { return tag.label.length(); }
+        public int noteLength(Note note) { return note.text.length(); }
     }
 
     public static class CounterHubImpl implements CounterHub {
@@ -296,6 +307,50 @@ class RemoteRefsTest {
         // легитимный subject-вызов с Tag (write-сторона клиента уже интернировала Tag → CLASSREF_USE):
         // резолвится ТОЛЬКО если сервер продвинул read-интернер на отклонённом кадре.
         assertThat(hub.tagSubject(new Tag("second"))).isEqualTo("second".length());
+    }
+
+    @Test
+    void wrapped_interface_dto_not_in_subject_signatures_works() throws Exception {
+        // I4: Note встречается ТОЛЬКО в графе wrapped-интерфейса Counter (не в CounterHub-сигнатурах).
+        // Ref-вызов с Note-аргументом резолвится на сервере ТОЛЬКО если export влил whitelist Counter
+        // в манифест subject'а (unionWhitelist) — иначе сервер отверг бы легальный вызов CODEC_ERROR+close.
+        // Явную .serializable(Note) НЕ регистрируем: проверяем именно вывод whitelist из графа wrapped.
+        CounterHub hub = connect();
+        Counter c = hub.counter("x");
+        assertThat(c.noteLength(new Note("hello"))).isEqualTo(5);
+        // соединение живо и после ref-вызова с ранее «невидимым» DTO.
+        assertThat(hub.counter("y").increment()).isEqualTo(1);
+    }
+
+    @Test
+    void with_options_on_ref_proxy_throws_clear_error() throws Exception {
+        // Минор: withOptions на ref-прокси прежде терял ref-режим → subject-вызов path=null → NPE.
+        // Теперь — понятный IllegalArgumentException.
+        CounterHub hub = connect();
+        Counter c = hub.counter("x"); // ref-прокси
+        assertThatThrownBy(() -> client.withOptions(c, RmapCallOptions.deadline(Duration.ofSeconds(1))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("remote-ref");
+    }
+
+    @Test
+    void reconnect_publishes_fresh_live_session_and_calls_work() throws Exception {
+        // I2 (наблюдаемая гарантия): после reconnect this.session = живая сессия ТЕКУЩЕГО соединения,
+        // а не затёртая поздним кадром мёртвого conn1 и не залипшая в null при здоровом conn2.
+        CounterHub hub = connect();
+        ClientSession s1 = client.liveSession();
+        assertThat(s1).isNotNull();
+        int g1 = s1.generation();
+        s1.connection().close(); // рвём → авто-reconnect (новая сессия, новый generation)
+        await(() -> {
+            ClientSession s = client.liveSession();
+            return s != null && s.generation() != g1;
+        });
+        ClientSession s2 = client.liveSession();
+        assertThat(s2).as("published session — живое текущее соединение").isNotNull();
+        assertThat(s2.connection().isClosed()).as("не затёрта мёртвым conn1").isFalse();
+        // subject-вызов на свежей сессии проходит (session не null и не подменена).
+        assertThat(hub.counter("fresh").increment()).isEqualTo(1);
     }
 
     // ---- прямые unit-проверки ObjectTable (self-review a/б) ----------------------------------

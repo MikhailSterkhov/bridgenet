@@ -18,7 +18,9 @@ public final class RmapNet {
      *  ЭТИМ {@code RmapNet} ПОСЛЕ вызова. {@code null} → сброс на no-op. Возвращает {@code this}
      *  для чейнинга. */
     public RmapNet metrics(RmapMetrics metrics) {
-        this.metrics = metrics != null ? metrics : RmapMetrics.NO_OP;
+        // Гардим пользовательские метрики один раз, здесь (единый choke-point): бросок из любого
+        // счётчика на горячем пути не должен ломать протокол (см. RmapMetrics.guarded).
+        this.metrics = RmapMetrics.guarded(metrics);
         return this;
     }
 

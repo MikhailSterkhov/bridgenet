@@ -80,14 +80,25 @@ public final class ExportAudit {
         private final Map<Long, Method> methodsById = new LinkedHashMap<>();
         /** Классы reflective-DTO на текущем пути спуска — разрывает циклы графа (Node{Node next;}). */
         private final Set<Class<?>> visiting = new HashSet<>();
+        /** ref-интерфейсы (wrap-возврат / CLIENT-возврат) к жадному аудиту графа + вливанию whitelist (I4). */
+        private final Set<Class<?>> refInterfaces = new LinkedHashSet<>();
+        /** Общий на всё дерево ref-аудита набор уже обойдённых интерфейсов — разрывает циклы графа
+         *  ref-интерфейсов (A возвращает ref B, B возвращает ref A) при рекурсивном аудите. */
+        private final Set<Class<?>> auditedRefs;
 
         private String currentMethod = "";
 
         Walker(Class<?> iface, ExportOptions opts, CodecRegistry registry, Mode mode) {
+            this(iface, opts, registry, mode, new HashSet<>());
+        }
+
+        Walker(Class<?> iface, ExportOptions opts, CodecRegistry registry, Mode mode,
+               Set<Class<?>> auditedRefs) {
             this.iface = iface;
             this.opts = opts;
             this.registry = registry;
             this.mode = mode;
+            this.auditedRefs = auditedRefs;
         }
 
         InterfaceManifest run() {
@@ -107,7 +118,12 @@ public final class ExportAudit {
                     walkType(paramType, false, EMPTY_ENV);
                 }
                 Type returnType = method.getGenericReturnType();
-                walkType(returnType, true, EMPTY_ENV);
+                // I6: Optional<T>/CompletableFuture<T> кодируемы ТОЛЬКО как верхний тип возврата —
+                // агент/прокси распаковывают ровно этот уровень по сигнатуре (§5.2/§7), рантайм их
+                // как значение не кодирует. Снимаем один верхний слой ЗДЕСЬ и аудируем внутренний тип
+                // в позиции возврата; глубже (вложенный Optional/CF, поле DTO, параметр, List<Optional>)
+                // walkType отвергает их. CF<Optional<…>> → внутренний Optional попадёт вложенным → отказ.
+                walkType(unwrapTopReturn(returnType), true, EMPTY_ENV);
 
                 // Правило «@Snapshot требует wrapped-возврат» — серверная export-валидация: клиент
                 // (lookup) wrap-набор сервера не знает и @Snapshot-возврат просто декодирует значением.
@@ -116,6 +132,13 @@ public final class ExportAudit {
                     addProblem("@Snapshot on method without wrapped return type");
                 }
             }
+
+            // I4: жадно аудировать интерфейсы, выдаваемые рефом (wrapReturnAsRemote-возврат на сервере /
+            // любой интерфейс-возврат на клиенте) — их собственный граф методов вводит DTO-типы
+            // (параметры ref-вызовов, возвраты ref-методов), которые ОБЯЗАНЫ быть в decode-whitelist,
+            // иначе легальный ref-вызов/ответ падал бы CODEC_ERROR. Их whitelist вливается в манифест
+            // subject'а; непригодный wrapped-интерфейс → RmapExportException на export (а не hang в рантайме).
+            auditWrappedGraphs();
 
             if (!problems.isEmpty()) {
                 throw new RmapExportException(String.join("\n", problems));
@@ -175,6 +198,14 @@ public final class ExportAudit {
 
         private void handleParameterized(Class<?> raw, Type[] args, boolean returnPosition,
                                          Map<TypeVariable<?>, Type> env) {
+            if (raw == Optional.class || raw == CompletableFuture.class) {
+                // I6: сюда Optional/CompletableFuture попадают только ВЛОЖЕННЫМИ (верхний уровень
+                // возврата снят в run()): параметр, поле DTO, List<Optional<X>>, CF<Optional<X>>.
+                // Рантайм их на этих позициях не распакует → закодировал бы значением → CODEC_ERROR.
+                addProblem((raw == Optional.class ? "Optional" : "CompletableFuture")
+                        + " encodable only as top-level return type: " + raw.getName());
+                return;
+            }
             if (isPlainContainer(raw) || raw == Map.class) {
                 for (Type arg : args) {
                     walkType(arg, returnPosition, env);
@@ -255,12 +286,17 @@ public final class ExportAudit {
                 return;
             }
             if (cls.isInterface()) {
-                if (isFunctionalLike(cls)) {
-                    addProblem("functional interface (callback) not encodable: " + cls.getName());
-                } else if (mode == Mode.CLIENT && returnPosition) {
-                    // §7.1: клиент не знает wrap-набор сервера — неизвестный интерфейс в позиции
-                    // возврата считаем потенциальным remote-ref (кодируемым), в whitelist.
+                if (mode == Mode.CLIENT && returnPosition) {
+                    // §7.1/I5: клиент не знает wrap-набор сервера — ЛЮБОЙ неизвестный интерфейс в
+                    // позиции возврата считаем потенциальным remote-ref (кодируемым, в whitelist),
+                    // включая одно-методный wrapReturnAsRemote(Player{String name()}). functional-
+                    // проверка к возврату на клиенте НЕ применяется (ветка ref ДО functional), иначе
+                    // client.lookup отверг бы легально экспортированный сервером wrapped-интерфейс.
                     addWhitelistRef(cls);
+                    refInterfaces.add(cls); // I4: аудировать граф ref-интерфейса → DTO ref-методов в whitelist
+                } else if (isFunctionalLike(cls)) {
+                    // SERVER-режим / позиция ПАРАМЕТРА: функциональный интерфейс (callback) не кодируем.
+                    addProblem("functional interface (callback) not encodable: " + cls.getName());
                 } else {
                     addProblem("interface not encodable (not wrapped): " + cls.getName());
                 }
@@ -286,6 +322,29 @@ public final class ExportAudit {
                 }
             } finally {
                 visiting.remove(cls);
+            }
+        }
+
+        /**
+         * I4: аудирует граф методов каждого ref-интерфейса (собранного в {@link #refInterfaces}) и вливает
+         * его decode-whitelist в текущий манифест. Ref-интерфейс аудируется теми же {@code opts}/{@code mode}
+         * — его собственные wrap-возвраты тоже станут refs и подтянут свои DTO (рекурсивно через вложенный
+         * {@link Walker}). Общий {@link #auditedRefs} разрывает циклы графа ref-интерфейсов. Непригодный
+         * ref-интерфейс (напр. callback-параметр) → его проблемы попадают в общий агрегат → export падает.
+         */
+        private void auditWrappedGraphs() {
+            for (Class<?> refIface : refInterfaces) {
+                if (!refIface.isInterface() || !auditedRefs.add(refIface)) {
+                    continue; // не интерфейс (проблема уже добавлена в wrapOrReject) либо уже аудирован
+                }
+                try {
+                    InterfaceManifest m = new Walker(refIface, opts, registry, mode, auditedRefs).run();
+                    whitelist.addAll(m.getDecodeWhitelist());
+                } catch (RmapExportException ex) {
+                    for (String line : ex.getMessage().split("\n")) {
+                        problems.add("wrapped " + refIface.getSimpleName() + ": " + line);
+                    }
+                }
             }
         }
 
@@ -315,11 +374,33 @@ public final class ExportAudit {
 
         private void wrapOrReject(Class<?> cls, boolean returnPosition) {
             if (returnPosition) {
+                if (!cls.isInterface()) {
+                    // I4: wrapReturnAsRemote должен быть интерфейсом (ref = JDK-прокси интерфейса).
+                    addProblem("wrapReturnAsRemote type is not an interface: " + cls.getName());
+                    return;
+                }
                 wrapped.add(cls);
                 addWhitelistRef(cls);
+                refInterfaces.add(cls); // I4: аудировать граф методов ref-интерфейса, влить его whitelist
             } else {
                 addProblem("remote-ref type in parameter position: " + cls.getName());
             }
+        }
+
+        /** Снимает РОВНО один верхний слой {@code Optional<T>}/{@code CompletableFuture<T>} с типа
+         *  возврата (I6): агент/прокси распаковывают только этот уровень. Прочие типы — как есть. */
+        private static Type unwrapTopReturn(Type returnType) {
+            if (returnType instanceof ParameterizedType) {
+                ParameterizedType pt = (ParameterizedType) returnType;
+                Type[] targs = pt.getActualTypeArguments();
+                if (pt.getRawType() instanceof Class && targs.length == 1) {
+                    Class<?> raw = (Class<?>) pt.getRawType();
+                    if (raw == Optional.class || raw == CompletableFuture.class) {
+                        return targs[0];
+                    }
+                }
+            }
+            return returnType;
         }
 
         private boolean returnMentionsWrapped(Type returnType) {

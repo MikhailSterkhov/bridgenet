@@ -256,8 +256,16 @@ public final class RmapClient {
                     generationSeq.incrementAndGet(), metrics);
             connCodec.setRefContext(s); // клиентский RefContext (§10): REMOTE_REF → ref-прокси
             sessions.put(conn, s);
-            this.session = s;
-            // §3(б)-аналог: соединение уже закрыто (onClosed опередил) — снять и fail-fast.
+            // I2: публикуем this.session ТОЛЬКО для живого И текущего активного соединения (CAS-семантика,
+            // не слепая запись). Иначе поздний onFrame(conn1) после reconnect (onFrame/onClosed между
+            // соединениями НЕ упорядочены) создал бы сессию для мёртвого conn1 и записью this.session=s1'
+            // затёр бы живую s2 (conn2 здоров → reconnect не сработает); а isClosed-гейт ниже откатил бы
+            // this.session в null, НЕ в s2 → все прокси-вызовы RmapConnectionException навсегда.
+            if (!conn.isClosed() && conn == current) {
+                this.session = s;
+            }
+            // §3(б)-аналог: соединение уже закрыто (onClosed опередил) — снять и fail-fast. this.session
+            // трогаем только если она указывает на эту (мёртвую) сессию — живую s2 не обнуляем.
             if (conn.isClosed()) {
                 sessions.remove(conn);
                 if (this.session == s) {

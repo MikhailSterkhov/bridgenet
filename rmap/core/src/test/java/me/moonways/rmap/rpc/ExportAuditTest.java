@@ -95,4 +95,96 @@ class ExportAuditTest {
                 .isInstanceOf(RmapExportException.class)
                 .hasMessageContaining("a").hasMessageContaining("b");
     }
+
+    // ---- I6: Optional/CompletableFuture кодируемы ТОЛЬКО как верхний тип возврата -------------
+
+    interface BadOptionalParam { void take(Optional<String> maybe); }
+    interface BadCfParam { void take(CompletableFuture<String> f); }
+    @RmapSerializable static class CfFieldDto { CompletableFuture<String> pending; }
+    interface BadCfField { CfFieldDto load(); }
+    @RmapSerializable static class OptFieldDto { Optional<String> maybe; }
+    interface BadOptField { OptFieldDto load(); }
+    interface BadListOptional { List<Optional<String>> items(); }
+    interface BadNestedCfOptional { CompletableFuture<Optional<String>> weird(); }
+    interface GoodOptionalReturn { Optional<String> find(String key); }
+    interface GoodCfReturn { CompletableFuture<String> fetch(); }
+
+    @Test
+    void optional_and_cf_only_allowed_as_top_level_return() {
+        ExportOptions opts = ExportOptions.defaults();
+        // параметр
+        assertThatThrownBy(() -> ExportAudit.audit(BadOptionalParam.class, opts, new CodecRegistry()))
+                .isInstanceOf(RmapExportException.class).hasMessageContaining("Optional");
+        assertThatThrownBy(() -> ExportAudit.audit(BadCfParam.class, opts, new CodecRegistry()))
+                .isInstanceOf(RmapExportException.class).hasMessageContaining("CompletableFuture");
+        // поле DTO (§5.2: в полях запрещены)
+        assertThatThrownBy(() -> ExportAudit.audit(BadCfField.class, opts, new CodecRegistry()))
+                .isInstanceOf(RmapExportException.class).hasMessageContaining("CompletableFuture");
+        assertThatThrownBy(() -> ExportAudit.audit(BadOptField.class, opts, new CodecRegistry()))
+                .isInstanceOf(RmapExportException.class).hasMessageContaining("Optional");
+        // вложение: List<Optional<X>> и CF<Optional<X>> — оба отказ
+        assertThatThrownBy(() -> ExportAudit.audit(BadListOptional.class, opts, new CodecRegistry()))
+                .isInstanceOf(RmapExportException.class).hasMessageContaining("Optional");
+        assertThatThrownBy(() -> ExportAudit.audit(BadNestedCfOptional.class, opts, new CodecRegistry()))
+                .isInstanceOf(RmapExportException.class).hasMessageContaining("Optional");
+        // верхний тип возврата — ок
+        assertThatCode(() -> ExportAudit.audit(GoodOptionalReturn.class, opts, new CodecRegistry()))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> ExportAudit.audit(GoodCfReturn.class, opts, new CodecRegistry()))
+                .doesNotThrowAnyException();
+    }
+
+    // ---- I5: Mode.CLIENT принимает одно-методный интерфейс в ВОЗВРАТЕ, но не в параметре -------
+
+    interface OneMethodIface { String name(); }              // одно-методный (isFunctionalLike)
+    interface ReturnsOneMethod { OneMethodIface who(); }
+    interface ParamOneMethod { void set(OneMethodIface w); }
+
+    @Test
+    void client_accepts_single_method_interface_in_return_but_not_in_param() {
+        ExportOptions opts = ExportOptions.defaults();
+        CodecRegistry reg = new CodecRegistry();
+        // CLIENT + позиция возврата: одно-методный интерфейс — потенциальный remote-ref (проходит).
+        assertThatCode(() -> ExportAudit.audit(ReturnsOneMethod.class, opts, reg, ExportAudit.Mode.CLIENT))
+                .doesNotThrowAnyException();
+        // CLIENT + позиция параметра: тот же интерфейс — ошибка (functional callback).
+        assertThatThrownBy(() -> ExportAudit.audit(ParamOneMethod.class, opts, reg, ExportAudit.Mode.CLIENT))
+                .isInstanceOf(RmapExportException.class);
+        // SERVER + возврат без wrapReturnAsRemote: functional-интерфейс — ошибка (прежнее поведение).
+        assertThatThrownBy(() -> ExportAudit.audit(ReturnsOneMethod.class, opts, reg, ExportAudit.Mode.SERVER))
+                .isInstanceOf(RmapExportException.class);
+    }
+
+    // ---- I4: граф wrapped-интерфейса аудируется и вливается в whitelist; непригодный → отказ ----
+
+    @RmapSerializable static class RefOnlyDto { String data; }
+    interface WrappedWithDto {                 // ref-интерфейс: RefOnlyDto НЕ виден subject-сигнатурам
+        int use(RefOnlyDto dto);
+        RefOnlyDto make();
+    }
+    interface SubjectExportingWrapped {
+        WrappedWithDto get(String name);       // wrap-возврат
+        int ping();                            // subject-сигнатуры RefOnlyDto НЕ упоминают
+    }
+
+    @Test
+    void wrapped_interface_graph_is_merged_into_subject_whitelist() {
+        InterfaceManifest m = ExportAudit.audit(SubjectExportingWrapped.class,
+                ExportOptions.builder().wrapReturnAsRemote(WrappedWithDto.class).build(), new CodecRegistry());
+        // DTO из графа wrapped-интерфейса (параметр use / возврат make) обязан быть в whitelist
+        // subject'а, хотя subject-сигнатуры его не содержат — иначе ref-вызов/ответ → CODEC_ERROR.
+        assertThat(m.getDecodeWhitelist()).contains(RefOnlyDto.class.getName());
+        assertThat(m.getWrappedInterfaces()).containsExactly(WrappedWithDto.class);
+    }
+
+    interface BadWrapped { void on(Runnable callback); }   // callback-параметр → непригоден
+    interface SubjectBadWrapped { BadWrapped get(); }
+
+    @Test
+    void unusable_wrapped_interface_fails_export() {
+        assertThatThrownBy(() -> ExportAudit.audit(SubjectBadWrapped.class,
+                ExportOptions.builder().wrapReturnAsRemote(BadWrapped.class).build(), new CodecRegistry()))
+                .isInstanceOf(RmapExportException.class)
+                .hasMessageContaining("wrapped");
+    }
 }

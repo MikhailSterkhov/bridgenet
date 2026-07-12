@@ -166,14 +166,27 @@ public final class ClientSession implements RefContext {
             int remaining = (int) Math.max(1L,
                     Math.min(deadlineAt - System.currentTimeMillis(), CallWire.MAX_DEADLINE_MILLIS));
             int argCount = args == null ? 0 : args.length;
-            connCodec.encodeAndSend(conn, FrameType.RGET, callId, (out, ctx) -> {
-                CallWire.encodeRgetHeader(out, subjectId, 0L, methodId, remaining, argCount);
-                if (args != null) {
-                    for (Object arg : args) {
-                        codec.encode(out, arg, ctx);
+            // I3: encode аргумента может бросить (полиморфный незарегистрированный подтип) — иначе
+            // whenComplete проглотил бы исключение, pending висел бы до deadline и юзер получил бы
+            // RmapTimeoutException вместо причины. Кадр НЕ отправлен, write-интернер откачен
+            // (ConnectionCodec) → соединение чисто; снимаем pending+таймер и отдаём причину.
+            try {
+                connCodec.encodeAndSend(conn, FrameType.RGET, callId, (out, ctx) -> {
+                    CallWire.encodeRgetHeader(out, subjectId, 0L, methodId, remaining, argCount);
+                    if (args != null) {
+                        for (Object arg : args) {
+                            codec.encode(out, arg, ctx);
+                        }
                     }
+                });
+            } catch (RuntimeException encodeEx) {
+                PendingCall r = pending.remove(callId);
+                if (r != null) {
+                    cancelTimer(r);
+                    completeLater(cf, null, encodeEx);
                 }
-            });
+                return;
+            }
             // fast-fail: закрылось между регистрацией и отправкой (send в закрытое молча дропнут).
             if (conn.isClosed()) {
                 PendingCall r = pending.remove(callId);
@@ -248,14 +261,26 @@ public final class ClientSession implements RefContext {
         int remaining = (int) Math.max(1L,
                 Math.min(deadlineAt - System.currentTimeMillis(), CallWire.MAX_DEADLINE_MILLIS));
         int argCount = args == null ? 0 : args.length;
-        connCodec.encodeAndSend(conn, FrameType.RGET, callId, (out, ctx) -> {
-            CallWire.encodeRgetHeader(out, -1, refId, methodId, remaining, argCount); // subjectId=-1 → ref-форма
-            if (args != null) {
-                for (Object arg : args) {
-                    codec.encode(out, arg, ctx);
+        // I3: encode аргумента может бросить (полиморфный незарегистрированный подтип) — синхронно
+        // здесь, иначе pending+таймер утекли бы (таймер потом слал бы CANCEL несуществующего вызова).
+        // Кадр НЕ отправлен, write-интернер откачен (ConnectionCodec) → соединение чисто.
+        try {
+            connCodec.encodeAndSend(conn, FrameType.RGET, callId, (out, ctx) -> {
+                CallWire.encodeRgetHeader(out, -1, refId, methodId, remaining, argCount); // subjectId=-1 → ref-форма
+                if (args != null) {
+                    for (Object arg : args) {
+                        codec.encode(out, arg, ctx);
+                    }
                 }
+            });
+        } catch (RuntimeException encodeEx) {
+            PendingCall r = pending.remove(callId);
+            if (r != null) {
+                cancelTimer(r);
+                completeLater(cf, null, encodeEx);
             }
-        });
+            return cf;
+        }
         if (conn.isClosed()) {
             PendingCall r = pending.remove(callId);
             if (r != null) {
@@ -328,7 +353,8 @@ public final class ClientSession implements RefContext {
         lw.future.complete(subjectId);
     }
 
-    /** DONE (§7.2): decode на serial; поздний/отменённый (pending==null) — молча со счётчиком. */
+    /** DONE (§7.2): decode на serial; поздний/отменённый (pending==null) — молча со счётчиком.
+     *  Decode-сбой (§5.1) — НЕ молчаливый дроп: CODEC_ERROR + close (см. {@link #onDecodeFailure}). */
     public void onDone(Frame frame) {
         decodeSerial.execute(() -> {
             long callId = frame.getCallId();
@@ -336,7 +362,8 @@ public final class ClientSession implements RefContext {
             try {
                 value = codec.decode(reader(frame), connCodec.readCtx());
             } catch (RuntimeException ex) {
-                return; // малформ DONE — вызов добьёт deadline-таймер
+                onDecodeFailure(callId, "DONE decode failed: ", ex);
+                return;
             }
             PendingCall pc = pending.remove(callId);
             if (pc == null) {
@@ -357,7 +384,8 @@ public final class ClientSession implements RefContext {
             try {
                 other = CallWire.decodeOther(reader(frame), codec, connCodec.readCtx());
             } catch (RuntimeException ex) {
-                return; // малформ OTHER — дроп
+                onDecodeFailure(callId, "OTHER decode failed: ", ex);
+                return;
             }
             LOG.debug("received OTHER(" + me.moonways.rmap.wire.OtherCode.name(other.getCode())
                     + ") callId=" + callId + ": " + other.getMessage());
@@ -436,6 +464,32 @@ public final class ClientSession implements RefContext {
 
     // ---- helpers -----------------------------------------------------------------------------
 
+    /**
+     * Decode DONE/OTHER провалился (§5.1) — НЕ молчаливый дроп (C2). Триггер: impl вернул
+     * {@code @RmapSerializable} runtime-подтип объявленного DTO → сервер закодировал (encode не
+     * фильтрует по whitelist), клиентский whitelist знает только базовый тип → {@code readClassRef}
+     * бросает ДО интернирования. Read-интернер клиента теперь перманентно рассинхронен с write-
+     * интернером сервера: серверный classId присвоен, клиентский счётчик не продвинулся → последующие
+     * classId СМЕЩЕНЫ (риск тихой инстанциации ЧУЖОГО класса) и вызовы умирали бы тихим таймаутом на
+     * «здоровом» соединении. Как сервер (§5.1: CODEC_ERROR + close), рвём соединение — reconnect
+     * поднимет новую сессию с чистыми интернерами. Ожидающий вызов (если это ответ на него) завершаем
+     * причиной ДО close (иначе он ждал бы failAllPending из onClosed).
+     */
+    private void onDecodeFailure(long callId, String context, RuntimeException cause) {
+        PendingCall pc = pending.remove(callId);
+        if (pc != null) {
+            cancelTimer(pc);
+            completeLater(pc.future, null, cause);
+        } else {
+            LookupWait lw = pendingLookups.remove(callId);
+            if (lw != null) {
+                subjectIds.remove(lw.path, lw.future);
+                completeLater(lw.future, null, cause);
+            }
+        }
+        conn.close(OtherCode.CODEC_ERROR, context + cause.getMessage());
+    }
+
     private RuntimeException mapOther(CallWire.Other other) {
         String msg = safe(other.getMessage());
         switch (other.getCode()) {
@@ -481,6 +535,8 @@ public final class ClientSession implements RefContext {
             // best-effort: провал CANCEL (outbound-лимит → RmapTransportException) не должен пробиться
             // ни в scheduler-задачу onDeadline, ни в пользовательский future.cancel(true). Вызов уже
             // завершён локально таймаутом/отменой; сервер снимет вызов сам по deadline либо разрыву.
+            // Но НЕ невидимо: persistent overflow/NPE в отправке CANCEL должны быть видны в логах.
+            LOG.debug("best-effort CANCEL send failed for callId=" + callId + ": " + swallowed);
         }
     }
 

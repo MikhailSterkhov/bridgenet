@@ -256,7 +256,18 @@ public final class RmapAgent {
             }
             return;
         }
-        InterfaceManifest manifest = refManifest(entry.iface, entry.opts);
+        InterfaceManifest manifest;
+        try {
+            manifest = refManifest(entry.iface, entry.opts);
+        } catch (me.moonways.rmap.api.RmapExportException ex) {
+            // I4: ленивый манифест ref-интерфейса бросил (интерфейс непригоден). НЕ виснем — иначе
+            // исключение проглотил бы SerialExecutor и клиент ждал бы до deadline. Сливаем аргументы
+            // (продвинуть read-интернер §5.2a) и отвечаем без close: соединение и прочие subject'ы живы.
+            if (drainArgs(in, readCtx, header.getArgCount(), callId)) {
+                sendOther(callId, OtherCode.INVALID_SIGNATURE, "ref interface not exportable: " + ex.getMessage());
+            }
+            return;
+        }
         Method method = manifest.getMethodsById().get(header.getMethodId());
         if (method == null) {
             if (drainArgs(in, readCtx, header.getArgCount(), callId)) {
