@@ -75,6 +75,12 @@ public final class RmapServer {
         long now = System.currentTimeMillis();
         long idleMillis = config.getIdleTimeout().toMillis();
         for (RmapConnection conn : connections) {
+            // §3(в): закрытое соединение (в set из-за onClosed-до-onOpened гонки) не трогаем —
+            // close по мёртвому объекту лишь плодил бы OTHER-кадры; удаляем из set.
+            if (conn.isClosed()) {
+                connections.remove(conn);
+                continue;
+            }
             HandshakeState hs = (HandshakeState) conn.getAttachment();
             if (hs != null && now - hs.lastInboundMillis() > idleMillis) {
                 conn.close(OtherCode.TIMED_OUT, "idle timeout");
@@ -134,9 +140,18 @@ public final class RmapServer {
                         }
                     },
                     ex -> { /* сервер future не имеет */ });
+            // §5: server-side start() кадров не шлёт (только state=WAIT_HELLO) — стартуем машину
+            // ДО публикации в attachment, иначе конкурентный onFrame по fast-path увидит state==null
+            // и упадёт NPE, оборвав легитимного клиента.
+            hs.start();
             conn.setAttachment(hs);
             connections.add(conn);
-            hs.start();
+            // §3(б): onOpened и onClosed — независимые worker-задачи; при мгновенном RST onClosed
+            // (connections.remove) мог исполниться ДО этого add → соединение осталось бы навсегда
+            // в set, а sweepIdle бесконечно звал бы close по мёртвому объекту. Закрываем гонку.
+            if (conn.isClosed()) {
+                connections.remove(conn);
+            }
             // handshake-timeout: закрыть не-аутентифицировавшееся соединение (§4.3).
             scheduler.schedule(() -> {
                 if (!conn.isAuthenticated()) {

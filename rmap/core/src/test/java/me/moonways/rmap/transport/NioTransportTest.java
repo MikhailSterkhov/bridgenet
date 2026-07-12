@@ -108,6 +108,38 @@ class NioTransportTest {
     }
 
     @Test
+    void malformed_short_frame_length_is_rejected_with_protocol_error() throws Exception {
+        // §6: len в диапазоне 0..8 (< HEADER_AFTER_LEN=9) раньше проходил проверку и вёл к
+        // new byte[len-9] = NegativeArraySizeException на selector-потоке. Теперь сервер шлёт
+        // OTHER(PROTOCOL_ERROR) и закрывает. Сырой java.net.Socket — минуя фасад/state-машину.
+        ConnectionListener serverListener = new ConnectionListener() {
+            public void onOpened(RmapConnection c) { }
+            public void onFrame(RmapConnection c, Frame f) { }
+            public void onClosed(RmapConnection c, Throwable t) { }
+        };
+        NioTransport server = NioTransport.startServer(new InetSocketAddress("127.0.0.1", 0), cfg(), serverListener);
+        try (java.net.Socket sock = new java.net.Socket("127.0.0.1", server.boundPort())) {
+            // [int32 len=3][мусор] — big-endian длина 3 меньше заголовка (9) ⇒ малформ.
+            sock.getOutputStream().write(new byte[]{0, 0, 0, 3, (byte) 0xAA, (byte) 0xBB, (byte) 0xCC});
+            sock.getOutputStream().flush();
+
+            java.io.DataInputStream in = new java.io.DataInputStream(sock.getInputStream());
+            int len = in.readInt(); // big-endian длина ответного кадра
+            assertThat(len).isGreaterThanOrEqualTo(me.moonways.rmap.wire.FrameCodec.HEADER_AFTER_LEN);
+            byte[] rest = new byte[len];
+            in.readFully(rest);
+            int type = rest[0] & 0xFF;
+            assertThat(type).as("ответный кадр — OTHER").isEqualTo(FrameType.OTHER.code());
+            byte[] payload = java.util.Arrays.copyOfRange(rest,
+                    me.moonways.rmap.wire.FrameCodec.HEADER_AFTER_LEN, len);
+            int code = new RmapByteReader(payload, 0, payload.length).readInt();
+            assertThat(code).as("код OTHER = PROTOCOL_ERROR").isEqualTo(OtherCode.PROTOCOL_ERROR);
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
     void double_close_delivers_onClosed_exactly_once() throws Exception {
         // Два вызова close() (два queued doClose-task'а) → doClose идемпотентен → onClosed ровно раз.
         AtomicInteger onClosedCount = new AtomicInteger(0);

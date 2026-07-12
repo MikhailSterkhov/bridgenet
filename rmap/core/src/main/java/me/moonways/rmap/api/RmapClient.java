@@ -80,9 +80,27 @@ public final class RmapClient {
         if (userClosed) {
             return; // scheduled-попытка после close() — no-op
         }
-        RmapConnection c = transport.connect(host, port, config, new Listener());
-        current = c;
-        scheduleHandshakeTimeout(c);
+        try {
+            RmapConnection c = transport.connect(host, port, config, new Listener());
+            current = c;
+            scheduleHandshakeTimeout(c);
+        } catch (RuntimeException e) {
+            // §4: transport.connect может бросить СИНХРОННО (UnresolvedAddressException — мимо
+            // IOException-обёртки; RmapTransportException при fd-давлении). Исключение из scheduled-
+            // задачи ScheduledExecutorService проглатывает → onClosed не будет (соединение не
+            // создано) → без этого reconnect больше НИКОГДА не планируется. Восстанавливаем цикл.
+            if (userClosed) {
+                return;
+            }
+            if (everAuthenticated) {
+                scheduleReconnect(); // реконнект установленной сессии — backoff-цепочка продолжается
+            } else {
+                CompletableFuture<Void> f = connectFuture; // первый connect — фейлим future
+                if (f != null && !f.isDone()) {
+                    f.completeExceptionally(e);
+                }
+            }
+        }
     }
 
     /** Per-attempt handshake-timeout (§4.3): фейлит ПЕРВЫЙ connect-future и рвёт протухший сокет. */

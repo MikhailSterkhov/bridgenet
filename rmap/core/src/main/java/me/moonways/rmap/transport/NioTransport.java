@@ -20,10 +20,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /** Plain-NIO транспорт RMAP: 1 selector-поток (только I/O) + worker-pool (спека §9). */
 public final class NioTransport {
 
+    /** §4: жёсткий дедлайн close-after-flush — hostile-пир, переставший читать, не держит соединение вечно. */
+    private static final long CLOSE_AFTER_FLUSH_DEADLINE_MILLIS = 5000L;
+
     private final Selector selector;
     private final ExecutorService workers;
     private final ConcurrentLinkedQueue<Runnable> selectorTasks = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean running = new AtomicBoolean(true);
+    /** §4: соединения с взведённым close-after-flush и их дедлайном. Доступ — только selector-поток. */
+    private final java.util.Set<RmapConnection> pendingClose = new java.util.HashSet<>();
     private ServerSocketChannel serverChannel; // null для клиентского транспорта
     private RmapConfig serverConfig;
     private ConnectionListener serverListener;
@@ -153,8 +158,30 @@ public final class NioTransport {
             }
             conn.setCloseCause(cause);
             conn.closeAfterFlushFlag().set(true);
+            // §4: взводим дедлайн — если пир перестал читать, OP_WRITE не сработает и отложенный
+            // doClose иначе не наступит никогда; selector-loop форсирует close по истечении.
+            conn.setCloseDeadlineMillis(System.currentTimeMillis() + CLOSE_AFTER_FLUSH_DEADLINE_MILLIS);
+            pendingClose.add(conn);
             k.interestOps(k.interestOps() | SelectionKey.OP_WRITE);
         });
+    }
+
+    /** §4: форсировать close соединений, чей close-after-flush-дедлайн истёк. Только selector-поток. */
+    private void sweepPendingClose() {
+        if (pendingClose.isEmpty()) return;
+        long now = System.currentTimeMillis();
+        java.util.List<RmapConnection> expired = null;
+        for (RmapConnection conn : pendingClose) {
+            if (now >= conn.closeDeadlineMillis()) {
+                if (expired == null) expired = new java.util.ArrayList<>();
+                expired.add(conn);
+            }
+        }
+        if (expired != null) {
+            for (RmapConnection conn : expired) {
+                doClose(conn, conn.closeCause()); // doClose сам удалит из pendingClose
+            }
+        }
     }
 
     private void runOnSelector(Runnable task) {
@@ -173,6 +200,7 @@ public final class NioTransport {
             while ((task = selectorTasks.poll()) != null) {
                 task.run();
             }
+            sweepPendingClose();
             Iterator<SelectionKey> it = selector.selectedKeys().iterator();
             while (it.hasNext()) {
                 SelectionKey k = it.next();
@@ -187,8 +215,14 @@ public final class NioTransport {
                     }
                 } catch (IOException | RuntimeException e) {
                     Attach a = (Attach) k.attachment();
-                    if (a != null) doClose(a.conn, e);
-                    else k.cancel();
+                    if (a != null) {
+                        doClose(a.conn, e);
+                    } else if (k.channel() != serverChannel) {
+                        // не серверный accept-ключ и без attachment — безопасно отменить
+                        k.cancel();
+                    }
+                    // §1(b): серверный accept-ключ НЕ трогаем — cancel навсегда убил бы приём
+                    // соединений. Транзиентную ошибку accept уже проглотил doAccept (§1a).
                 }
             }
         }
@@ -199,15 +233,26 @@ public final class NioTransport {
         }
     }
 
-    private void doAccept() throws IOException {
-        SocketChannel sc = serverChannel.accept();
-        if (sc == null) return;
-        sc.configureBlocking(false);
-        RmapConnection conn = new RmapConnection(this, sc, true, serverConfig);
-        SelectionKey k = sc.register(selector, SelectionKey.OP_READ, new Attach(conn, serverListener, serverConfig));
-        conn.setKey(k);
-        conn.setListenerInternal(serverListener); // §2(b): listener доступен doClose сразу
-        deliverOpened(conn, serverListener);
+    private void doAccept() {
+        // §1(a): транзиентная IOException приёма (классика — EMFILE при fd-флуде) НЕ должна
+        // распространяться в loop-catch: там серверный accept-ключ (без attachment) был бы отменён
+        // и сервер навсегда перестал бы принимать. Ловим здесь, закрываем только принятый сокет,
+        // сервер продолжает работать.
+        SocketChannel sc = null;
+        try {
+            sc = serverChannel.accept();
+            if (sc == null) return;
+            sc.configureBlocking(false);
+            RmapConnection conn = new RmapConnection(this, sc, true, serverConfig);
+            SelectionKey k = sc.register(selector, SelectionKey.OP_READ, new Attach(conn, serverListener, serverConfig));
+            conn.setKey(k);
+            conn.setListenerInternal(serverListener); // §2(b): listener доступен doClose сразу
+            deliverOpened(conn, serverListener);
+        } catch (IOException e) {
+            if (sc != null) {
+                try { sc.close(); } catch (IOException ignored) { }
+            }
+        }
     }
 
     private void doFinishConnect(SelectionKey k) throws IOException {
@@ -251,8 +296,16 @@ public final class NioTransport {
         while (in.remaining() >= 4) {
             in.mark();
             int len = in.getInt();
-            if (len < 0 || len > conn.frameLimit()) {
+            // §6: len < HEADER_AFTER_LEN (в т.ч. отрицательный) — малформ: 9 байт заголовка не
+            // помещаются, а new byte[len-9] дал бы NegativeArraySizeException на selector-потоке.
+            if (len < FrameCodec.HEADER_AFTER_LEN) {
+                conn.close(me.moonways.rmap.wire.OtherCode.PROTOCOL_ERROR, "malformed frame length: " + len);
+                abortInbound(conn, in); // §7
+                return;
+            }
+            if (len > conn.frameLimit()) {
                 conn.close(me.moonways.rmap.wire.OtherCode.FRAME_TOO_LARGE, "frame too large: " + len);
+                abortInbound(conn, in); // §7
                 return;
             }
             if (in.remaining() < len) { in.reset(); break; }
@@ -267,6 +320,19 @@ public final class NioTransport {
             });
         }
         in.compact(); // оставить неполный хвост
+    }
+
+    /**
+     * §7: соединение обречено (close уже инициирован по малформ/oversized). Снимаем интерес
+     * OP_READ у ключа (мы на selector-потоке) и компактим inbound, чтобы окно повторного
+     * drainFrames не сделало двойной flip по уже flipped-буферу (разбор мусорных кадров до close).
+     */
+    private void abortInbound(RmapConnection conn, ByteBuffer in) {
+        SelectionKey k = conn.getKeyInternal();
+        if (k != null && k.isValid()) {
+            k.interestOps(k.interestOps() & ~SelectionKey.OP_READ);
+        }
+        in.compact();
     }
 
     private void doWrite(SelectionKey k) throws IOException {
@@ -306,6 +372,7 @@ public final class NioTransport {
         // идемпотентность: onClosed ровно один раз, даже если doClose пришёл двумя путями
         // (например conn.close() + параллельный FIN/ошибка на selector-потоке).
         if (!conn.closedFlag().compareAndSet(false, true)) return;
+        pendingClose.remove(conn); // §4: снять из реестра дедлайнов (если был взведён)
         SelectionKey k = conn.getKeyInternal();
         if (k != null) k.cancel();
         try { conn.channel().close(); } catch (IOException ignored) { }

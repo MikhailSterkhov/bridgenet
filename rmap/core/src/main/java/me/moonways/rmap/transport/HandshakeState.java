@@ -104,6 +104,13 @@ public final class HandshakeState {
 
     private void handleFrameLocked(RmapConnection conn, Frame frame) {
         touchInbound();
+        // §5-защёлка: кадр мог опередить start() (state ещё null — публикация машины до init).
+        // Трактуем как protocol-нарушение, а не NPE в switch(state) ниже. (Server-side start()
+        // теперь вызывается ДО публикации в attachment, но защёлка дешёвая и закрывает класс.)
+        if (state == null) {
+            protocolError(frame.getType());
+            return;
+        }
         if (state == State.AUTHENTICATED || state == State.FAILED) {
             return; // терминальные состояния — игнорируем «поздние» кадры
         }

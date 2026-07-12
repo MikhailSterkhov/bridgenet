@@ -33,6 +33,8 @@ public final class RmapConnection {
     // graceful close: закрыть ПОСЛЕ полного слива outbound (доставка OTHER-кадра инициатору)
     private final AtomicBoolean closeAfterFlush = new AtomicBoolean(false);
     private volatile Throwable closeCause; // причина для onClosed при close-after-flush
+    // §4: жёсткий дедлайн close-after-flush (now+const); ставится/читается только selector-потоком
+    private long closeDeadlineMillis;
     // идемпотентность doClose: onClosed ровно один раз
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
@@ -64,8 +66,21 @@ public final class RmapConnection {
         try { return channel.getRemoteAddress(); } catch (Exception e) { return null; }
     }
 
+    /** true после doClose (onClosed уже поставлен/доставлен). Читает существующий closed-флаг. */
+    public boolean isClosed() {
+        return closed.get();
+    }
+
     /** Потокобезопасная отправка кадра. */
     public void send(Frame frame) {
+        // §3(г): соединение закрыто — НЕ ставим кадр в очередь. Иначе outbound мёртвого объекта
+        // растёт неограниченно (sweepIdle/поздние send при RST-флуде: doClose уже отменил ключ,
+        // очередь никогда не сольётся). Выбор — ТИХИЙ ДРОП, а не бросок RmapTransportException:
+        // бросок пророс бы через keepAliveTick→sendPing в scheduleAtFixedRate и навсегда заглушил
+        // бы keep-alive; graceful-путь close(code,msg) шлёт OTHER до выставления closed и не задет.
+        if (closed.get()) {
+            return;
+        }
         byte[] wire = FrameCodec.encode(frame);
         long total = outboundBytes.addAndGet(wire.length);
         if (total > config.getOutboundLimitBytes()) {
@@ -112,4 +127,6 @@ public final class RmapConnection {
     AtomicBoolean closedFlag() { return closed; }
     Throwable closeCause() { return closeCause; }
     void setCloseCause(Throwable t) { this.closeCause = t; }
+    long closeDeadlineMillis() { return closeDeadlineMillis; }
+    void setCloseDeadlineMillis(long v) { this.closeDeadlineMillis = v; }
 }
