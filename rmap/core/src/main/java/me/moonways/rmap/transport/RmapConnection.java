@@ -29,6 +29,11 @@ public final class RmapConnection {
     private final ConcurrentLinkedQueue<byte[]> outbound = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean writeScheduled = new AtomicBoolean(false);
     private final AtomicLong outboundBytes = new AtomicLong(0);
+    // §5.2a/§9: per-connection упорядоченная доставка onFrame — кадры selector кладёт СТРОГО в
+    // wire-порядке, worker дренирует по одному (один in-flight на соединение). Это даёт serial-decode
+    // читаемый wire-порядок classRef-интернирования, недостижимый при конкурентном onFrame.
+    private final ConcurrentLinkedQueue<Frame> inboundFrames = new ConcurrentLinkedQueue<>();
+    private final AtomicBoolean frameDispatchScheduled = new AtomicBoolean(false);
     private ByteBuffer currentWrite; // остаток недописанного, только selector
     // graceful close: закрыть ПОСЛЕ полного слива outbound (доставка OTHER-кадра инициатору)
     private final AtomicBoolean closeAfterFlush = new AtomicBoolean(false);
@@ -97,6 +102,16 @@ public final class RmapConnection {
         transport.closeConnection(this, null);
     }
 
+    /**
+     * Graceful close ПОСЛЕ слива уже поставленных в outbound кадров, БЕЗ отправки собственного
+     * OTHER (в отличие от {@link #close(int, String)}). Применяет RPC-слой (§7.2): сначала
+     * {@code encodeAndSend} echo-callId OTHER структурного нарушения, затем этот close —
+     * клиент получает код, потом FIN. Канал непригоден к записи → немедленный close.
+     */
+    public void closeAfterFlush() {
+        transport.closeAfterFlush(this, new RmapTransportException("closed after flush"));
+    }
+
     public void close(int otherCode, String message) {
         // спека §4.3/§4.2a: инициатор ошибки шлёт OTHER(callId=0) и закрывает ПОСЛЕ его отправки.
         Throwable cause = new RmapTransportException("closed: code=" + otherCode + " " + message);
@@ -114,6 +129,10 @@ public final class RmapConnection {
         // OTHER поставлен в очередь — закрыть graceful ПОСЛЕ его слива в сокет
         transport.closeAfterFlush(this, cause);
     }
+
+    // ---- per-connection упорядоченная доставка onFrame (§5.2a/§9) ----
+    ConcurrentLinkedQueue<Frame> inboundFrames() { return inboundFrames; }
+    AtomicBoolean frameDispatchScheduled() { return frameDispatchScheduled; }
 
     // ---- selector-поток: доступ к outbound ----
     ConcurrentLinkedQueue<byte[]> outbound() { return outbound; }

@@ -143,6 +143,30 @@ public final class NioTransport {
         });
     }
 
+    /**
+     * §9 input flow-control: снять интерес OP_READ (перестать принимать новые кадры). Только
+     * selector трогает interestOps (образец — {@link #requestWrite}); идемпотентно; на закрытом
+     * (ключ null/невалиден) соединении — no-op.
+     */
+    public void pauseReads(RmapConnection conn) {
+        runOnSelector(() -> {
+            SelectionKey k = conn.getKeyInternal();
+            if (k != null && k.isValid()) {
+                k.interestOps(k.interestOps() & ~SelectionKey.OP_READ);
+            }
+        });
+    }
+
+    /** §9 input flow-control: вернуть интерес OP_READ. Идемпотентно; no-op на закрытом. */
+    public void resumeReads(RmapConnection conn) {
+        runOnSelector(() -> {
+            SelectionKey k = conn.getKeyInternal();
+            if (k != null && k.isValid()) {
+                k.interestOps(k.interestOps() | SelectionKey.OP_READ);
+            }
+        });
+    }
+
     void closeConnection(RmapConnection conn, Throwable cause) {
         runOnSelector(() -> doClose(conn, cause));
     }
@@ -314,12 +338,42 @@ public final class NioTransport {
             byte[] payload = new byte[len - FrameCodec.HEADER_AFTER_LEN];
             in.get(payload);
             Frame frame = FrameCodec.decodeBody(frameTypeCode, callId, payload);
-            workers.execute(() -> {
-                try { listener.onFrame(conn, frame); }
-                catch (RuntimeException e) { closeConnection(conn, e); }
-            });
+            // §5.2a/§9: НЕ диспатчим каждый кадр отдельной worker-задачей (это ломало бы wire-порядок
+            // per-connection: две задачи стартуют конкурентно, и второй кадр может опередить первый).
+            // Кладём в per-connection очередь СТРОГО в wire-порядке (мы на selector-потоке) и дренируем
+            // одним in-flight worker'ом — onFrame одного соединения идёт последовательно и по порядку.
+            conn.inboundFrames().add(frame);
+            scheduleFrameDispatch(conn, listener);
         }
         in.compact(); // оставить неполный хвост
+    }
+
+    /** Планирует (идемпотентно) per-connection дренаж inbound-кадров на worker-пуле — один in-flight. */
+    private void scheduleFrameDispatch(RmapConnection conn, ConnectionListener listener) {
+        if (conn.frameDispatchScheduled().compareAndSet(false, true)) {
+            workers.execute(() -> drainConnFrames(conn, listener));
+        }
+    }
+
+    /** Дренаж кадров ОДНОГО соединения строго последовательно и в порядке постановки (wire-порядок).
+     *  Double-check на границе опустошения закрывает гонку с добавлением кадра selector'ом. */
+    private void drainConnFrames(RmapConnection conn, ConnectionListener listener) {
+        while (true) {
+            Frame frame;
+            while ((frame = conn.inboundFrames().poll()) != null) {
+                try {
+                    listener.onFrame(conn, frame);
+                } catch (RuntimeException e) {
+                    closeConnection(conn, e);
+                }
+            }
+            conn.frameDispatchScheduled().set(false);
+            // кадр мог быть добавлен между poll()==null и set(false): перезахватываем дренаж.
+            if (conn.inboundFrames().isEmpty()
+                    || !conn.frameDispatchScheduled().compareAndSet(false, true)) {
+                return;
+            }
+        }
     }
 
     /**
