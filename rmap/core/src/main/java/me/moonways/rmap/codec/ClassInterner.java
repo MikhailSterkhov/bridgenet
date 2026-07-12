@@ -6,10 +6,13 @@ import java.util.Set;
 
 /** Интернирование classId per-direction (спека §5.2a). Отдельный инстанс на
  *  encode-проход и на decode-проход (в плане A — на сообщение; в плане B — на
- *  соединение). Не потокобезопасен. */
+ *  соединение, connection-scoped: {@code writeClassRef}/{@code readClassRef}
+ *  synchronized — конкурентные encode-вызовы с общим write-interner'ом safe). */
 public final class ClassInterner {
 
     static final int MAX_INTERNED = 4096; // спека §5.1
+
+    private final int maxClasses;
 
     // write-сторона
     private final Map<Class<?>, Integer> writeIds = new HashMap<>();
@@ -18,15 +21,24 @@ public final class ClassInterner {
     private int nextWriteId = 1;
     private int nextReadId = 1;
 
-    public void writeClassRef(RmapByteWriter out, Class<?> type) {
+    public ClassInterner() {
+        this(MAX_INTERNED);
+    }
+
+    /** maxClasses — лимит definition'ов на direction (спека §11 maxInternedClasses). */
+    public ClassInterner(int maxClasses) {
+        this.maxClasses = maxClasses;
+    }
+
+    public synchronized void writeClassRef(RmapByteWriter out, Class<?> type) {
         Integer id = writeIds.get(type);
         if (id != null) {
             out.writeByte(Tags.CLASSREF_USE);
             out.writeInt(id);
             return;
         }
-        if (writeIds.size() >= MAX_INTERNED) {
-            throw new RmapCodecException("too many interned classes");
+        if (writeIds.size() >= maxClasses) {
+            throw new RmapCodecException("interned classes limit exceeded: " + maxClasses);
         }
         writeIds.put(type, nextWriteId++);
         out.writeByte(Tags.CLASSREF_DEF);
@@ -34,7 +46,7 @@ public final class ClassInterner {
     }
 
     /** whitelist == null → принять любой FQN (тесты/ACCEPT_ALL); иначе FQN обязан быть в наборе. */
-    public Class<?> readClassRef(RmapByteReader in, Set<String> whitelist) {
+    public synchronized Class<?> readClassRef(RmapByteReader in, Set<String> whitelist) {
         int disc = in.readUnsignedByte();
         if (disc == Tags.CLASSREF_USE) {
             Class<?> c = readClasses.get(in.readInt());
@@ -50,8 +62,8 @@ public final class ClassInterner {
         if (whitelist != null && !whitelist.contains(fqn)) {
             throw new RmapCodecException("class not in whitelist: " + fqn); // ДО Class.forName
         }
-        if (readClasses.size() >= MAX_INTERNED) {
-            throw new RmapCodecException("too many interned classes");
+        if (readClasses.size() >= maxClasses) {
+            throw new RmapCodecException("interned classes limit exceeded: " + maxClasses);
         }
         Class<?> c;
         try {

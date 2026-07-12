@@ -64,7 +64,7 @@ class GoldenCodecTest {
     }
 
     private Object decode(byte[] bytes) {
-        return codec.decode(new RmapByteReader(bytes, 0, bytes.length), null);
+        return codec.decode(new RmapByteReader(bytes, 0, bytes.length), (java.util.Set<String>) null);
     }
 
     private static byte[] fromHex(String hex) {

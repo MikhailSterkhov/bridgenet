@@ -58,7 +58,7 @@ class ObjectCodecTest {
         RmapByteWriter w = new RmapByteWriter();
         codec.encode(w, v);
         byte[] b = w.toByteArray();
-        return (T) codec.decode(new RmapByteReader(b, 0, b.length), null);
+        return (T) codec.decode(new RmapByteReader(b, 0, b.length), (java.util.Set<String>) null);
     }
 
     @Test
@@ -166,7 +166,7 @@ class ObjectCodecTest {
         w.writeByte(Tags.INT);              // y = 0
         w.writeInt(0);
         byte[] b = w.toByteArray();
-        assertThatThrownBy(() -> new RmapCodec().decode(new RmapByteReader(b, 0, b.length), null))
+        assertThatThrownBy(() -> new RmapCodec().decode(new RmapByteReader(b, 0, b.length), (java.util.Set<String>) null))
                 .isInstanceOf(RmapCodecException.class);
     }
 
@@ -187,7 +187,7 @@ class ObjectCodecTest {
         w.writeByte(Tags.INT);              // y = 0
         w.writeInt(0);
         byte[] b = w.toByteArray();
-        assertThatThrownBy(() -> new RmapCodec().decode(new RmapByteReader(b, 0, b.length), null))
+        assertThatThrownBy(() -> new RmapCodec().decode(new RmapByteReader(b, 0, b.length), (java.util.Set<String>) null))
                 .isInstanceOf(RmapCodecException.class);
     }
 
@@ -199,7 +199,7 @@ class ObjectCodecTest {
         w.writeByte(Tags.OBJECT);
         new ClassInterner().writeClassRef(w, Color.class);
         byte[] b = w.toByteArray();
-        assertThatThrownBy(() -> new RmapCodec().decode(new RmapByteReader(b, 0, b.length), null))
+        assertThatThrownBy(() -> new RmapCodec().decode(new RmapByteReader(b, 0, b.length), (java.util.Set<String>) null))
                 .isInstanceOf(RmapCodecException.class);
     }
 
@@ -214,7 +214,7 @@ class ObjectCodecTest {
         }
         w.writeByte(Tags.NULL); // дно
         byte[] b = w.toByteArray();
-        assertThatThrownBy(() -> new RmapCodec().decode(new RmapByteReader(b, 0, b.length), null))
+        assertThatThrownBy(() -> new RmapCodec().decode(new RmapByteReader(b, 0, b.length), (java.util.Set<String>) null))
                 .isInstanceOf(RmapCodecException.class);
     }
 

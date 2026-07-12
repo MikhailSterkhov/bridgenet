@@ -22,7 +22,7 @@ class CollectionCodecTest {
         RmapByteWriter w = new RmapByteWriter();
         codec.encode(w, v);
         byte[] b = w.toByteArray();
-        return (T) codec.decode(new RmapByteReader(b, 0, b.length), null);
+        return (T) codec.decode(new RmapByteReader(b, 0, b.length), (Set<String>) null);
     }
 
     @Test
@@ -65,7 +65,7 @@ class CollectionCodecTest {
         w.writeByte(Tags.LIST);
         w.writeInt(-5); // подделанный размер
         byte[] b = w.toByteArray();
-        assertThatThrownBy(() -> codec.decode(new RmapByteReader(b, 0, b.length), null))
+        assertThatThrownBy(() -> codec.decode(new RmapByteReader(b, 0, b.length), (Set<String>) null))
                 .isInstanceOf(RmapCodecException.class);
     }
 
@@ -77,7 +77,7 @@ class CollectionCodecTest {
         w.writeByte(Tags.LIST);
         w.writeInt(Integer.MAX_VALUE);
         byte[] b = w.toByteArray();
-        assertThatThrownBy(() -> codec.decode(new RmapByteReader(b, 0, b.length), null))
+        assertThatThrownBy(() -> codec.decode(new RmapByteReader(b, 0, b.length), (Set<String>) null))
                 .isInstanceOf(RmapCodecException.class);
     }
 }

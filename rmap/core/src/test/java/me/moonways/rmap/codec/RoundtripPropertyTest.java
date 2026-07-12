@@ -56,7 +56,7 @@ class RoundtripPropertyTest {
             RmapByteWriter w = new RmapByteWriter();
             codec.encode(w, original);
             byte[] bytes = w.toByteArray();
-            Bag back = (Bag) codec.decode(new RmapByteReader(bytes, 0, bytes.length), null);
+            Bag back = (Bag) codec.decode(new RmapByteReader(bytes, 0, bytes.length), (java.util.Set<String>) null);
             assertThat(back.getN()).isEqualTo(original.getN());
             assertThat(back.getS()).isEqualTo(original.getS());
             assertThat(back.getItems()).isEqualTo(original.getItems());
@@ -74,7 +74,7 @@ class RoundtripPropertyTest {
         RmapByteWriter w = new RmapByteWriter();
         codec.encode(w, a);
         byte[] bytes = w.toByteArray();
-        Bag back = (Bag) codec.decode(new RmapByteReader(bytes, 0, bytes.length), null);
+        Bag back = (Bag) codec.decode(new RmapByteReader(bytes, 0, bytes.length), (java.util.Set<String>) null);
         assertThat(back.getChild()).isSameAs(back.getItems().get(0));
     }
 }

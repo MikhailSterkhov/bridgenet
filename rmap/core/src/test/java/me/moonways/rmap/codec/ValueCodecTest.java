@@ -71,7 +71,7 @@ class ValueCodecTest {
         RmapByteWriter w = new RmapByteWriter();
         codec.encode(w, v);
         byte[] b = w.toByteArray();
-        return (T) codec.decode(new RmapByteReader(b, 0, b.length), null);
+        return (T) codec.decode(new RmapByteReader(b, 0, b.length), (java.util.Set<String>) null);
     }
 
     @Test
@@ -123,7 +123,7 @@ class ValueCodecTest {
         codecWith(reg).encode(w, m);
         byte[] b = w.toByteArray();
         assertThatThrownBy(
-                () -> codecWith(reg).decode(new RmapByteReader(b, 0, b.length), null))
+                () -> codecWith(reg).decode(new RmapByteReader(b, 0, b.length), (java.util.Set<String>) null))
                 .isInstanceOf(RmapCodecException.class);
     }
 

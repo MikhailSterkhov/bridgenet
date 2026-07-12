@@ -17,7 +17,7 @@ class ScalarCodecTest {
         RmapByteWriter w = new RmapByteWriter();
         codec.encode(w, v);
         byte[] b = w.toByteArray();
-        return codec.decode(new RmapByteReader(b, 0, b.length), null);
+        return codec.decode(new RmapByteReader(b, 0, b.length), (java.util.Set<String>) null);
     }
 
     @Test
@@ -51,7 +51,7 @@ class ScalarCodecTest {
         codec.encode(w, data);
         byte[] wire = w.toByteArray();
         assertThat(wire[0] & 0xFF).isEqualTo(Tags.BYTES);
-        assertThat((byte[]) codec.decode(new RmapByteReader(wire, 0, wire.length), null)).containsExactly(data);
+        assertThat((byte[]) codec.decode(new RmapByteReader(wire, 0, wire.length), (java.util.Set<String>) null)).containsExactly(data);
     }
 
     @Test
@@ -75,7 +75,7 @@ class ScalarCodecTest {
         ci.writeClassRef(w, Color.class);   // classRef-def: 0x00, str FQN (§5.2a)
         w.writeStr("MAGENTA");
         byte[] b = w.toByteArray();
-        assertThatThrownBy(() -> codec.decode(new RmapByteReader(b, 0, b.length), null))
+        assertThatThrownBy(() -> codec.decode(new RmapByteReader(b, 0, b.length), (java.util.Set<String>) null))
                 .isInstanceOf(RmapCodecException.class);
     }
 
