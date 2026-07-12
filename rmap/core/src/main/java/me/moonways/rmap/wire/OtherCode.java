@@ -20,4 +20,25 @@ public final class OtherCode {
 
     private OtherCode() {
     }
+
+    /** Символьное имя кода OTHER для сообщений об ошибках handshake (§4.2a). */
+    public static String name(int code) {
+        switch (code) {
+            case VERSION_MISMATCH: return "VERSION_MISMATCH";
+            case APP_VERSION_MISMATCH: return "APP_VERSION_MISMATCH";
+            case CODEC_MISMATCH: return "CODEC_MISMATCH";
+            case ACCESS_DENIED: return "ACCESS_DENIED";
+            case PROTOCOL_ERROR: return "PROTOCOL_ERROR";
+            case SUBJECT_UNDEFINED: return "SUBJECT_UNDEFINED";
+            case DIGEST_MISMATCH: return "DIGEST_MISMATCH";
+            case INVALID_SIGNATURE: return "INVALID_SIGNATURE";
+            case TIMED_OUT: return "TIMED_OUT";
+            case INTERNAL_ERROR: return "INTERNAL_ERROR";
+            case STALE_REF: return "STALE_REF";
+            case FRAME_TOO_LARGE: return "FRAME_TOO_LARGE";
+            case CODEC_ERROR: return "CODEC_ERROR";
+            case BACKPRESSURE: return "BACKPRESSURE";
+            default: return "OTHER(" + code + ")";
+        }
+    }
 }
